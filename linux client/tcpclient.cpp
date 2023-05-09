@@ -1,47 +1,7 @@
-#ifdef _WIN32 
-    #define WIN32_LEAN_AND_MEAN 
-    #include <windows.h> 
-    #include <winsock2.h> 
-    #include <ws2tcpip.h> 
-    // Директива линковщику: использовать библиотеку сокетов 
-    #pragma comment(lib, "ws2_32.lib") 
-#else // LINUX 
-    #include <sys/types.h> 
-    #include <sys/socket.h> 
-    #include <limits.h>
-    #include <unistd.h>
-    #include <netdb.h> 
-    #include <errno.h> 
-#endif
-
-#include <stdio.h> 
-#include <string.h>
-#include <iostream>
-#include <chrono>
-#include <thread>
-
-#define WEBHOST "google.com"
-#define MAX_PATH 32768
-
-int init();
-void deinit();
-void init_addr(struct sockaddr_in &addr, int family, const char *addres, int port);
-
-int sock_err(const char* function, int sock);
-void s_close(int sock);
-
-unsigned int get_host_ipn(const char* name);
-int send_request(int sock);
-int recv_response(int sock, FILE* f);
-int parse_err(int ret_code);
-int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[256]);
-int parse_cmd_to_addr(char *cmd_addr, int &i, char *addres);
-int parse_cmd_to_port(char *cmd_addr, int i);
-int parse_cmd_to_path(char *cmd_flname, char *fl_path);
-int try_to_connect(int sock, sockaddr_in &addr);
+#include "tcpclient.h"
 
 
-int init() 
+int init_netw_lib() 
 { 
 #ifdef _WIN32 // Для Windows следует вызвать WSAStartup перед началом использования сокетов 
     WSADATA wsa_data; 
@@ -51,7 +11,7 @@ int init()
 #endif 
 }
 
-void deinit() 
+void deinit_netw_lib() 
 { 
 #ifdef _WIN32 // Для Windows следует вызвать WSACleanup в конце работы 
     WSACleanup(); 
@@ -106,6 +66,119 @@ unsigned int get_host_ipn(const char* name)
     return ip4addr; 
 }
 
+void get_msg(std::ifstream source, std::string destination)
+{
+    std::getline(source, destination);
+}
+
+void parse_msg(std::string source, std::string &date_1, std::string &date_2, std::string &time, std::string &msg)
+{
+    std::stringstream str_stream(source);
+    char dummy;
+    str_stream >> std::noskipws;
+
+    str_stream >> date_1;
+    str_stream.clear();
+    str_stream >> dummy;
+
+    str_stream >> date_2;
+    str_stream.clear();
+    str_stream >> dummy;
+    
+    str_stream >> time;
+    str_stream.clear();
+    str_stream >> dummy;
+    
+    getline(str_stream, msg);
+}
+
+void handle_msg(int sock, std::string source)
+{
+    std::string date_1, date_2, time, msg_text;
+    parse_msg(source, date_1, date_2, time, msg_text);
+
+    send_date(sock, date_1);
+    send_date(sock, date_2);
+    send_time(sock, time);
+    send_msg(sock, msg_text.c_str(), msg_text.length() + 1);
+}
+ 
+void send_date(int sock, std::string source)
+{
+    std::vector <std::string> data = split_string(source, ".");
+    char temp_byte;
+    unsigned short temp_ushort;
+
+    temp_byte = (char)std::stoi(data[0]);    
+    send_msg(sock, &temp_byte, 1);
+    
+    temp_byte = (char)std::stoi(data[1]);    
+    send_msg(sock, &temp_byte, 1);
+
+    temp_ushort = htons((uint16_t)std::stoi(data[2]));
+    send_msg(sock, &temp_ushort, 2);
+}
+
+void send_time(int sock, std::string source)
+{
+    std::vector <std::string> data = split_string(source, ".");
+    char temp_byte;
+
+    temp_byte = (char)std::stoi(data[0]);    
+    send_msg(sock, &temp_byte, 1);
+
+    temp_byte = (char)std::stoi(data[1]);    
+    send_msg(sock, &temp_byte, 1);
+
+    temp_byte = (char)std::stoi(data[2]);    
+    send_msg(sock, &temp_byte, 1);
+}
+
+int send_msg(int sock, const void * buf, int len) 
+{ 
+#ifdef _WIN32 
+    int flags = 0; 
+#else 
+    int flags = MSG_NOSIGNAL; 
+#endif
+
+    // Отправка блока данных 
+    int res = send(sock, buf, len, flags); 
+    if (res < 0) 
+        return sock_err("send", sock);
+
+    // printf(" %d bytes sent.\n", len); 
+    return 0; 
+}
+
+int send_msg_index(int sock, int msg_index)
+{
+    std::string buf = std::to_string(htonl(msg_index));
+    send_msg(sock, buf.c_str(), 4);
+}
+
+int send_client_msgs(int sock, std::ifstream &source)
+{
+    signal_to_server(sock);
+
+    int msg_index = 0;
+    std::string buffer;
+
+    while(std::getline(source, buffer))
+    {
+        if(buffer.length() == 0)
+            continue;
+        
+        send_msg_index(sock, msg_index++);
+        handle_msg(sock, buffer);
+    }
+}
+
+void signal_to_server(int sock)
+{
+    send_msg(sock, "put", 3);
+}
+
 // Отправляет http-запрос на удаленный сервер 
 int send_request(int sock) 
 { 
@@ -126,7 +199,8 @@ int send_request(int sock)
         if (res < 0) 
             return sock_err("send", sock);
 
-        sent += res; printf(" %d bytes sent.\n", sent); 
+        sent += res; 
+        printf(" %d bytes sent.\n", sent); 
     }
     return 0; 
 }
@@ -215,7 +289,6 @@ int parse_cmd_to_path(char *cmd_flname, char fl_path[MAX_PATH])
     return 0;
 }
 
-
 void init_addr(sockaddr_in &addr, int family, const char *addres, int port)
 {
     memset(&addr, 0, sizeof(addr)); 
@@ -244,49 +317,57 @@ int try_to_connect(int sock, sockaddr_in &addr)
     return 0;
 }
 
-int main(int argc, char *argv[]) 
+unsigned char 
+stouc(std::string source)
 {
-    int port;
-    char addres[256];
-    char fl_path[MAX_PATH];
-
-    parse_cmd(argc, argv, addres, port, fl_path);
-    
-    FILE *data_file = fopen(fl_path, "r");
-    if(data_file == NULL)
+    unsigned char result = 0;
+    for(int i = 0; i < source.length(); i++)
     {
-        perror("Cant open data file\n");
-        fclose(data_file);
-        return 0;
+        result *= 10;
+        result += source[i] - '0';
     }
+    return result;
+}
 
-    int client_tcp_socket; 
-    struct sockaddr_in addr; 
-    FILE *f;
-    // Инициалиазация сетевой библиотеки 
-    init();
-    // Создание TCP-сокета 
-    client_tcp_socket = socket(AF_INET, SOCK_STREAM, 0); 
-    if (client_tcp_socket < 0) 
-        return sock_err("socket", client_tcp_socket);
+unsigned int
+stouint(std::string source)
+{
+    unsigned int result = 0;
+    for(int i = 0; i < source.length(); i++)
+    {
+        result *= 10;
+        result += source[i] - '0';
+    }
+    return result;
+}
 
-    // Заполнение структуры с адресом удаленного узла 
-    init_addr(addr, AF_INET, addres, port);
+unsigned short 
+stous(std::string source)
+{
+    unsigned short result = 0;
+    for(int i = 0; i < source.length(); i++)
+    {
+        result *= 10;
+        result += source[i] - '0';
+    }
+    return result;
+}
 
-    // Установка соединения с удаленным хостом
-    try_to_connect(client_tcp_socket, addr);
-
-    // Отправка запроса на удаленный сервер 
-    send_request(client_tcp_socket);
-    // Прием результата 
-    f = fopen("page.html", "wb"); 
-    recv_response(client_tcp_socket, f); 
-    fclose(f);
-
-    fclose(data_file);
-    
-    // Закрытие соединения 
-    s_close(client_tcp_socket);    
-    deinit();
-    return 0;
+std::vector<std::string> 
+split_string(std::string str, std::string separator, int max_splits = 0)
+{
+    std::vector <std::string> result;
+    size_t pos = 0;
+    int num_splits = 0;
+    while (((max_splits == 0) || (num_splits < max_splits)) && ((pos = str.find(separator)) != std::string::npos))
+    {
+        result.push_back(str.substr(0, pos));
+        str.erase(0, pos + separator.length());
+        // Skip over any additional separators at the beginning of the remaining string
+        while (str.find(separator) == 0)
+        str.erase(0, separator.length());
+        num_splits++;
+    }
+    result.push_back(str);
+    return result;
 }
