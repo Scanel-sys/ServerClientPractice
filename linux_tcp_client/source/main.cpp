@@ -17,13 +17,12 @@ int main(int argc, char *argv[])
     std::ifstream data_file;
     data_file.open(fl_path);
 
-
     int client_tcp_socket; 
+    int sent_msgs;
     struct sockaddr_in addr; 
-    FILE *f;
 
     init_netw_lib();
-    // Создание TCP-сокета 
+
     client_tcp_socket = socket(AF_INET, SOCK_STREAM, 0); 
     if (client_tcp_socket < 0) 
         return sock_err("socket", client_tcp_socket);
@@ -31,17 +30,11 @@ int main(int argc, char *argv[])
     init_addr(addr, AF_INET, addres, port);
 
     try_to_connect(client_tcp_socket, addr);
-    send_client_msgs(client_tcp_socket, data_file);
-
-    // Отправка запроса на удаленный сервер 
-    send_request(client_tcp_socket);
-    // Прием результата 
-    f = fopen("page.html", "wb"); 
-    recv_response(client_tcp_socket, f); 
-    fclose(f);
-
+    sent_msgs = send_client_msgs(client_tcp_socket, data_file);
+    recvn_response_ok(client_tcp_socket, sent_msgs);
+    
     data_file.close();    
-    // Закрытие соединения 
+    shutdown_server(client_tcp_socket);
     s_close(client_tcp_socket);    
     deinit_netw_lib();
 

@@ -40,6 +40,11 @@ void s_close(int sock)
 #endif 
 }
 
+int shutdown_server(int sock)
+{
+    return send_msg(sock, "stop", 4);
+}
+
 // Функция определяет IP-адрес узла по его имени. 
 // Адрес возвращается в сетевом порядке байтов. 
 unsigned int get_host_ipn(const char* name) 
@@ -147,19 +152,19 @@ int send_msg(int sock, const void * buf, int len)
     if (res < 0) 
         return sock_err("send", sock);
 
-    // printf(" %d bytes sent.\n", len); 
+    printf(" %d bytes sent.\n", len); 
     return 0; 
 }
 
 int send_msg_index(int sock, int msg_index)
 {
-    std::string buf = std::to_string(htonl(msg_index));
-    send_msg(sock, buf.c_str(), 4);
+    int to_send = htonl(msg_index);
+    return send_msg(sock, &to_send, 4);
 }
 
 int send_client_msgs(int sock, std::ifstream &source)
 {
-    signal_to_server(sock);
+    init_talk_with_server(sock);
 
     int msg_index = 0;
     std::string buffer;
@@ -172,9 +177,10 @@ int send_client_msgs(int sock, std::ifstream &source)
         send_msg_index(sock, msg_index++);
         handle_msg(sock, buffer);
     }
+    return msg_index;
 }
 
-void signal_to_server(int sock)
+void init_talk_with_server(int sock)
 {
     send_msg(sock, "put", 3);
 }
@@ -205,7 +211,7 @@ int send_request(int sock)
     return 0; 
 }
 
-int recv_response(int sock, FILE* f) 
+int recv_response_to_file(int sock, FILE* f) 
 {   
     char buffer[256]; int res;
     // Принятие очередного блока данных. 
@@ -219,6 +225,38 @@ int recv_response(int sock, FILE* f)
     if (res < 0) 
         return sock_err("recv", sock);
     return 0; 
+}
+
+int recv_response_once(int sock, char *buffer, int len) 
+{   
+    int res;
+    if((res = recv(sock, buffer, len, 0)) > 0)  
+        printf(" %d bytes received\n", res); 
+    
+    if (res < 0) 
+        return sock_err("recv_resp", sock);
+    return 0; 
+}
+
+bool recv_response_ok(int sock) 
+{   
+    char buffer[2];
+    recv_response_once(sock, buffer, 2);
+    if(buffer[0] == 'o' &&
+       buffer[1] == 'k')
+       return true;
+    return false;
+}
+
+int recvn_response_ok(int sock, int msgs_number)
+{
+    int i = 0;
+    while(i < msgs_number && recv_response_ok(sock))
+        i++;
+    
+    if(i != msgs_number)
+        return sock_err("ok recvier", sock);
+    return 0;
 }
 
 int parse_err(int ret_code)
@@ -317,45 +355,11 @@ int try_to_connect(int sock, sockaddr_in &addr)
     return 0;
 }
 
-unsigned char 
-stouc(std::string source)
-{
-    unsigned char result = 0;
-    for(int i = 0; i < source.length(); i++)
-    {
-        result *= 10;
-        result += source[i] - '0';
-    }
-    return result;
-}
-
-unsigned int
-stouint(std::string source)
-{
-    unsigned int result = 0;
-    for(int i = 0; i < source.length(); i++)
-    {
-        result *= 10;
-        result += source[i] - '0';
-    }
-    return result;
-}
-
-unsigned short 
-stous(std::string source)
-{
-    unsigned short result = 0;
-    for(int i = 0; i < source.length(); i++)
-    {
-        result *= 10;
-        result += source[i] - '0';
-    }
-    return result;
-}
-
 std::vector<std::string> 
-split_string(std::string str, std::string separator, int max_splits = 0)
+split_string(std::string str, std::string separator)
 {
+    int max_splits = 0;
+
     std::vector <std::string> result;
     size_t pos = 0;
     int num_splits = 0;

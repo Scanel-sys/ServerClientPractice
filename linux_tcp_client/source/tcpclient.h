@@ -33,7 +33,9 @@ void init_addr(struct sockaddr_in &addr, int family, const char *addres, int por
 
 int sock_err(const char* function, int sock);
 void s_close(int sock);
+int shutdown_server(int sock);
 
+unsigned int get_host_ipn(const char* name);
 int try_to_connect(int sock, sockaddr_in &addr);
 
 void get_msg(std::ifstream source, std::string destination);
@@ -42,13 +44,16 @@ void handle_msg(int sock, std::string source);
 void send_date(int sock, std::string source);
 void send_time(int sock, std::string source);
 
-unsigned int get_host_ipn(const char* name);
 int send_msg(int sock, const void * buf, int len);
 int send_msg_index(int sock, int msg_index);
 int send_client_msgs(int sock, std::ifstream &source);
-void signal_to_server(int sock);
+void init_talk_with_server(int sock);
 int send_request(int sock);
-int recv_response(int sock, FILE* f);
+int recv_response_to_file(int sock, FILE* f);
+int recv_response_once(int sock, char *buffer, int len);
+bool recv_response_ok(int sock);
+int recvn_response_ok(int sock, int msgs_number);
+
 
 int parse_err(int ret_code);
 int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[256]);
@@ -58,8 +63,4 @@ int parse_cmd_to_path(char *cmd_flname, char *fl_path);
 
 void parse_msg(std::string source, std::string &date_1, std::string &date_2, std::string &time, std::string &msg);
 
-unsigned char stouc(std::string source);
-unsigned int stouint(std::string source);
-unsigned short stous(std::string source);
-
-std::vector<std::string> split_string(std::string str, std::string separator, int max_splits = 0);
+std::vector<std::string> split_string(std::string str, std::string separator);
