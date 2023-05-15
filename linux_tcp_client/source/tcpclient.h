@@ -55,7 +55,7 @@ bool recv_response_ok(int sock);
 int recvn_response_ok(int sock, int msgs_number);
 
 
-int parse_err(int ret_code);
+int parse_err(const char* function);
 int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[256]);
 int parse_cmd_to_addr(char *cmd_addr, int &i, char *addres);
 int parse_cmd_to_port(char *cmd_addr, int i);

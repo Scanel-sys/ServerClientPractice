@@ -126,7 +126,7 @@ void send_date(int sock, std::string source)
 
 void send_time(int sock, std::string source)
 {
-    std::vector <std::string> data = split_string(source, ".");
+    std::vector <std::string> data = split_string(source, ":");
     char temp_byte;
 
     temp_byte = (char)std::stoi(data[0]);    
@@ -259,24 +259,31 @@ int recvn_response_ok(int sock, int msgs_number)
     return 0;
 }
 
-int parse_err(int ret_code)
-{
-    return -1;
+int parse_err(const char* function) 
+{ 
+    int err; 
+#ifdef _WIN32 
+    err = WSAGetLastError(); 
+#else
+    err = errno; 
+#endif
+    fprintf(stderr, "%s: parse error: %d\n", function, err); 
+    return -1; 
 }
 
 int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[MAX_PATH])
 {
     if(argc != 3)
-        return parse_err(-1);
+        return parse_err("Wrong number of parameters passed");
  
     int i = 0;
 
     if(parse_cmd_to_addr(argv[1], i, addres) != 0)
-        return parse_err(-1);
+        return parse_err("Bad format of addres (parse_cmd_to_addr)");
     
     port = parse_cmd_to_port(argv[1], i);
     if(port < 0)
-        return parse_err(-1);
+        return parse_err("Wrong port is passed");
     
     parse_cmd_to_path(argv[2], fl_path);
 
@@ -340,7 +347,7 @@ int try_to_connect(int sock, sockaddr_in &addr)
     using namespace std::this_thread;
     using namespace std::chrono;
 
-    for(int i; i < 10; i++)
+    for(int i = 0; i < 10; i++)
     {
         if (connect(sock, (struct sockaddr*) &addr, sizeof(addr)) == 0)
             break;

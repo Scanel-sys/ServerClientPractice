@@ -14,12 +14,13 @@ int main(int argc, char *argv[])
         perror("Data file seems like doesnt exist\n");
         return 0;
     }
-    std::ifstream data_file;
-    data_file.open(fl_path);
+
+    std::cout << addres << ' ' << port << '\n';
 
     int client_tcp_socket; 
     int sent_msgs;
     struct sockaddr_in addr; 
+    std::ifstream data_file;
 
     init_netw_lib();
 
@@ -30,7 +31,10 @@ int main(int argc, char *argv[])
     init_addr(addr, AF_INET, addres, port);
 
     try_to_connect(client_tcp_socket, addr);
+    data_file.open(fl_path);
     sent_msgs = send_client_msgs(client_tcp_socket, data_file);
+    
+    // send_msg(client_tcp_socket, buff, 4);
     recvn_response_ok(client_tcp_socket, sent_msgs);
     
     data_file.close();    
