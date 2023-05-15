@@ -19,6 +19,14 @@ void deinit_netw_lib()
 #endif 
 }
 
+void init_addr(sockaddr_in &addr, int family, const char *addres, int port)
+{
+    memset(&addr, 0, sizeof(addr)); 
+    addr.sin_family = AF_INET; 
+    addr.sin_port = htons(port); 
+    addr.sin_addr.s_addr = get_host_ipn(addres);
+}
+
 int sock_err(const char* function, int sock) 
 { 
     int err; 
@@ -31,7 +39,7 @@ int sock_err(const char* function, int sock)
     return -1; 
 }
 
-void s_close(int sock) 
+void close_sock(int sock) 
 { 
 #ifdef _WIN32 
     closesocket(sock); 
@@ -71,193 +79,6 @@ unsigned int get_host_ipn(const char* name)
     return ip4addr; 
 }
 
-void get_msg(std::ifstream source, std::string destination)
-{
-    std::getline(source, destination);
-}
-
-void parse_msg(std::string source, std::string &date_1, std::string &date_2, std::string &time, std::string &msg)
-{
-    std::stringstream str_stream(source);
-    char dummy;
-    str_stream >> std::noskipws;
-
-    str_stream >> date_1;
-    str_stream.clear();
-    str_stream >> dummy;
-
-    str_stream >> date_2;
-    str_stream.clear();
-    str_stream >> dummy;
-    
-    str_stream >> time;
-    str_stream.clear();
-    str_stream >> dummy;
-    
-    getline(str_stream, msg);
-}
-
-void handle_msg(int sock, std::string source)
-{
-    std::string date_1, date_2, time, msg_text;
-    parse_msg(source, date_1, date_2, time, msg_text);
-
-    send_date(sock, date_1);
-    send_date(sock, date_2);
-    send_time(sock, time);
-    send_msg(sock, msg_text.c_str(), msg_text.length() + 1);
-}
- 
-void send_date(int sock, std::string source)
-{
-    std::vector <std::string> data = split_string(source, ".");
-    char temp_byte;
-    unsigned short temp_ushort;
-
-    temp_byte = (char)std::stoi(data[0]);    
-    send_msg(sock, &temp_byte, 1);
-    
-    temp_byte = (char)std::stoi(data[1]);    
-    send_msg(sock, &temp_byte, 1);
-
-    temp_ushort = htons((uint16_t)std::stoi(data[2]));
-    send_msg(sock, &temp_ushort, 2);
-}
-
-void send_time(int sock, std::string source)
-{
-    std::vector <std::string> data = split_string(source, ":");
-    char temp_byte;
-
-    temp_byte = (char)std::stoi(data[0]);    
-    send_msg(sock, &temp_byte, 1);
-
-    temp_byte = (char)std::stoi(data[1]);    
-    send_msg(sock, &temp_byte, 1);
-
-    temp_byte = (char)std::stoi(data[2]);    
-    send_msg(sock, &temp_byte, 1);
-}
-
-int send_msg(int sock, const void * buf, int len) 
-{ 
-#ifdef _WIN32 
-    int flags = 0; 
-#else 
-    int flags = MSG_NOSIGNAL; 
-#endif
-
-    // Отправка блока данных 
-    int res = send(sock, buf, len, flags); 
-    if (res < 0) 
-        return sock_err("send", sock);
-
-    printf(" %d bytes sent.\n", len); 
-    return 0; 
-}
-
-int send_msg_index(int sock, int msg_index)
-{
-    int to_send = htonl(msg_index);
-    return send_msg(sock, &to_send, 4);
-}
-
-int send_client_msgs(int sock, std::ifstream &source)
-{
-    init_talk_with_server(sock);
-
-    int msg_index = 0;
-    std::string buffer;
-
-    while(std::getline(source, buffer))
-    {
-        if(buffer.length() == 0)
-            continue;
-        
-        send_msg_index(sock, msg_index++);
-        handle_msg(sock, buffer);
-    }
-    return msg_index;
-}
-
-void init_talk_with_server(int sock)
-{
-    send_msg(sock, "put", 3);
-}
-
-// Отправляет http-запрос на удаленный сервер 
-int send_request(int sock) 
-{ 
-    const char* request = "GET / HTTP/1.0\r\nServer: " WEBHOST "\r\n\r\n"; 
-    int size = strlen(request); 
-    int sent = 0;
-
-#ifdef _WIN32 
-    int flags = 0; 
-#else 
-    int flags = MSG_NOSIGNAL; 
-#endif
-
-    while (sent < size) 
-    { 
-        // Отправка очередного блока данных 
-        int res = send(sock, request + sent, size - sent, flags); 
-        if (res < 0) 
-            return sock_err("send", sock);
-
-        sent += res; 
-        printf(" %d bytes sent.\n", sent); 
-    }
-    return 0; 
-}
-
-int recv_response_to_file(int sock, FILE* f) 
-{   
-    char buffer[256]; int res;
-    // Принятие очередного блока данных. 
-    // Если соединение будет разорвано удаленным узлом recv вернет 0 
-    while ((res = recv(sock, buffer, sizeof(buffer), 0)) > 0) 
-    { 
-        fwrite(buffer, 1, res, f); 
-        printf(" %d bytes received\n", res); 
-    }
-
-    if (res < 0) 
-        return sock_err("recv", sock);
-    return 0; 
-}
-
-int recv_response_once(int sock, char *buffer, int len) 
-{   
-    int res;
-    if((res = recv(sock, buffer, len, 0)) > 0)  
-        printf(" %d bytes received\n", res); 
-    
-    if (res < 0) 
-        return sock_err("recv_resp", sock);
-    return 0; 
-}
-
-bool recv_response_ok(int sock) 
-{   
-    char buffer[2];
-    recv_response_once(sock, buffer, 2);
-    if(buffer[0] == 'o' &&
-       buffer[1] == 'k')
-       return true;
-    return false;
-}
-
-int recvn_response_ok(int sock, int msgs_number)
-{
-    int i = 0;
-    while(i < msgs_number && recv_response_ok(sock))
-        i++;
-    
-    if(i != msgs_number)
-        return sock_err("ok recvier", sock);
-    return 0;
-}
 
 int parse_err(const char* function) 
 { 
@@ -334,13 +155,136 @@ int parse_cmd_to_path(char *cmd_flname, char fl_path[MAX_PATH])
     return 0;
 }
 
-void init_addr(sockaddr_in &addr, int family, const char *addres, int port)
+
+parsed_message parse_msg(std::string source)
 {
-    memset(&addr, 0, sizeof(addr)); 
-    addr.sin_family = AF_INET; 
-    addr.sin_port = htons(port); 
-    addr.sin_addr.s_addr = get_host_ipn(addres);
+    parsed_message temp_message;
+    std::stringstream str_stream(source);
+    std::string temp_str;
+    
+    char dummy;
+    str_stream >> std::noskipws;
+
+    str_stream >> temp_str;
+    str_stream.clear();
+    str_stream >> dummy;
+    temp_message.date1 = parse_date(temp_str);
+
+    str_stream >> temp_str;
+    str_stream.clear();
+    str_stream >> dummy;
+    temp_message.date2 = parse_date(temp_str);
+    
+    str_stream >> temp_str;
+    str_stream.clear();
+    str_stream >> dummy;
+    temp_message.time = parse_time(temp_str);
+    
+    getline(str_stream, temp_message.msg_text);
+
+    return temp_message;
 }
+
+parsed_date parse_date(std::string date)
+{
+    parsed_date temp_date;
+    std::vector <std::string> data = split_string(date, ".");
+    
+    temp_date.day = (char)std::stoi(data[0]);
+    temp_date.month = (char)std::stoi(data[1]);
+    temp_date.year = htons((uint16_t)std::stoi(data[2]));
+
+    return temp_date;
+}
+
+parsed_time parse_time(std::string time)
+{
+    parsed_time temp_time;
+    std::vector <std::string> data = split_string(time, ":");
+
+    temp_time.hour = (char)std::stoi(data[0]);
+    temp_time.min = (char)std::stoi(data[1]);
+    temp_time.sec = (char)std::stoi(data[2]);
+
+    return temp_time;
+}
+
+
+void handle_msg(int sock, std::string source)
+{
+    parsed_message msg_to_sent = parse_msg(source);
+
+    send_date(sock, msg_to_sent.date1);
+    send_date(sock, msg_to_sent.date2);
+    send_time(sock, msg_to_sent.time);
+    send_msg(sock, msg_to_sent.msg_text.c_str(), msg_to_sent.msg_text.length() + 1);
+}
+ 
+void send_date(int sock, parsed_date &date_to_sent)
+{
+    send_msg(sock, &date_to_sent.day, 1);
+    send_msg(sock, &date_to_sent.month, 1);
+    send_msg(sock, &date_to_sent.year, 2);
+}
+
+void send_time(int sock, parsed_time &time_to_sent)
+{
+    send_msg(sock, &time_to_sent.hour, 1);
+    send_msg(sock, &time_to_sent.min, 1);
+    send_msg(sock, &time_to_sent.sec, 1);
+}
+
+int send_msg(int sock, const void * buf, int len) 
+{ 
+#ifdef _WIN32 
+    int flags = 0; 
+#else 
+    int flags = MSG_NOSIGNAL; 
+#endif
+
+    // Отправка блока данных 
+    int res = send(sock, buf, len, flags); 
+    if (res < 0) 
+        return sock_err("send", sock);
+
+    printf(" %d bytes sent.\n", len); 
+    return 0; 
+}
+
+
+int send_msg_index(int sock, int msg_index)
+{
+    int to_send = htonl(msg_index);
+    return send_msg(sock, &to_send, 4);
+}
+
+int send_client_msgs(int sock, std::ifstream &source)
+{
+    init_talk_with_server(sock);
+
+    int msg_index = 0;
+    std::string buffer;
+
+    while(std::getline(source, buffer))
+    {
+        if(buffer.length() == 0)
+            continue;
+        
+        send_msg_index(sock, msg_index++);
+        handle_msg(sock, buffer);
+    }
+    return msg_index;
+}
+
+
+int Socket(int domain, int type, int protocol)
+{
+	int sock = socket(domain, type, protocol);
+	if (sock == -1)
+		return sock_err("socket", sock);
+
+	return sock;
+} 
 
 int try_to_connect(int sock, sockaddr_in &addr)
 {
@@ -354,11 +298,89 @@ int try_to_connect(int sock, sockaddr_in &addr)
         
         else if (i == 9) 
         { 
-            s_close(sock); 
+            close_sock(sock); 
             return sock_err("connect", sock); 
         }
         sleep_for(milliseconds(100));
     }
+    return 0;
+}
+
+void init_talk_with_server(int sock)
+{
+    send_msg(sock, "put", 3);
+}
+
+int send_request(int sock) 
+{ 
+    const char* request = "GET / HTTP/1.0\r\nServer: " WEBHOST "\r\n\r\n"; 
+    int size = strlen(request); 
+    int sent = 0;
+
+#ifdef _WIN32 
+    int flags = 0; 
+#else 
+    int flags = MSG_NOSIGNAL; 
+#endif
+
+    while (sent < size) 
+    { 
+        // Отправка очередного блока данных 
+        int res = send(sock, request + sent, size - sent, flags); 
+        if (res < 0) 
+            return sock_err("send", sock);
+
+        sent += res; 
+        printf(" %d bytes sent.\n", sent); 
+    }
+    return 0; 
+}
+
+int recv_response_to_file(int sock, FILE* f) 
+{   
+    char buffer[256]; int res;
+    // Принятие очередного блока данных. 
+    // Если соединение будет разорвано удаленным узлом recv вернет 0 
+    while ((res = recv(sock, buffer, sizeof(buffer), 0)) > 0) 
+    { 
+        fwrite(buffer, 1, res, f); 
+        printf(" %d bytes received\n", res); 
+    }
+
+    if (res < 0) 
+        return sock_err("recv", sock);
+    return 0; 
+}
+
+int recv_response_once(int sock, char *buffer, int len) 
+{   
+    int res;
+    if((res = recv(sock, buffer, len, 0)) > 0)  
+        printf(" %d bytes received\n", res); 
+    
+    if (res < 0) 
+        return sock_err("recv_resp", sock);
+    return 0; 
+}
+
+bool recv_response_ok(int sock) 
+{   
+    char buffer[2];
+    recv_response_once(sock, buffer, 2);
+    if(buffer[0] == 'o' &&
+       buffer[1] == 'k')
+       return true;
+    return false;
+}
+
+int recvn_response_ok(int sock, int msgs_number)
+{
+    int i = 0;
+    while(i < msgs_number && recv_response_ok(sock))
+        i++;
+    
+    if(i != msgs_number)
+        return sock_err("ok recvier", sock);
     return 0;
 }
 
