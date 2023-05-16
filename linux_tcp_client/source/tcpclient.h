@@ -36,7 +36,6 @@ void deinit_netw_lib();
 void init_addr(struct sockaddr_in &addr, int family, const char *addres, int port);
 int sock_err(const char* function, int sock);
 void close_sock(int sock);
-int shutdown_server(int sock);
 
 unsigned int get_host_ipn(const char* name);
 

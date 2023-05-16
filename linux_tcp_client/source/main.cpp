@@ -26,14 +26,14 @@ int main(int argc, char *argv[])
     init_addr(ip_addr_internet_style, AF_INET, ip_addr, port);
 
     try_to_connect(client_tcp_socket, ip_addr_internet_style);
+    init_talk_with_server(client_tcp_socket);
     
     data_file.open(fl_path);
     sent_msgs = send_client_msgs(client_tcp_socket, data_file);
     data_file.close();    
     
     recvn_response_ok(client_tcp_socket, sent_msgs);
-    
-    shutdown_server(client_tcp_socket);
+
     close_sock(client_tcp_socket);    
     deinit_netw_lib();
 

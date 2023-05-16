@@ -71,11 +71,6 @@ void close_sock(int sock)
 #endif 
 }
 
-int shutdown_server(int sock)
-{
-    return send_msg(sock, "stop", 4);
-}
-
 // Функция определяет IP-адрес узла по его имени. 
 // Адрес возвращается в сетевом порядке байтов. 
 unsigned int get_host_ipn(const char* name) 
@@ -283,8 +278,6 @@ int send_msg_index(int sock, int msg_index)
 
 int send_client_msgs(int sock, std::ifstream &source)
 {
-    init_talk_with_server(sock);
-
     int msg_index = 0;
     std::string buffer;
 
@@ -398,12 +391,27 @@ bool recv_response_ok(int sock)
 
 int recvn_response_ok(int sock, int msgs_number)
 {
-    int i = 0;
-    while(i < msgs_number && recv_response_ok(sock))
-        i++;
+    using namespace std::this_thread;
+    using namespace std::chrono;
+
+    int i = 0, bad_tries = 0;
+    while(i < msgs_number)
+    {
+        if(bad_tries > 10)
+            return sock_err("ok recvier", sock);
+
+        if(recv_response_ok(sock))
+        {
+            i++;
+            bad_tries = 0;
+        }
+        else
+        {
+            bad_tries++;
+            sleep_for(milliseconds(100));
+        }
+    }
     
-    if(i != msgs_number)
-        return sock_err("ok recvier", sock);
     return 0;
 }
 
