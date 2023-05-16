@@ -27,27 +27,9 @@
 #define WEBHOST "google.com"
 #define MAX_PATH 32768
 
-struct parsed_time
-{
-    char hour;
-    char min;
-    char sec;
-};
-
-struct parsed_date
-{
-    char day;
-    char month;
-    unsigned short year;
-};
-
-struct parsed_message
-{
-    struct parsed_date date1;
-    struct parsed_date date2;
-    struct parsed_time time;
-    std::string msg_text;
-};
+struct parsed_date;
+struct parsed_time;
+struct parsed_message;
 
 int init_netw_lib();
 void deinit_netw_lib();

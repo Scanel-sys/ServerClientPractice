@@ -1,6 +1,29 @@
 #include "tcpclient.h"
 
 
+struct parsed_time
+{
+    char hour;
+    char min;
+    char sec;
+};
+
+struct parsed_date
+{
+    char day;
+    char month;
+    unsigned short year;
+};
+
+struct parsed_message
+{
+    struct parsed_date date1;
+    struct parsed_date date2;
+    struct parsed_time time;
+    std::string msg_text;
+};
+
+
 int init_netw_lib() 
 { 
 #ifdef _WIN32 // Для Windows следует вызвать WSAStartup перед началом использования сокетов 
