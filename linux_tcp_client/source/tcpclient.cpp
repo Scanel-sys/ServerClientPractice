@@ -381,10 +381,9 @@ int recv_response_once(int sock, char *buffer, int len)
 
 bool recv_response_ok(int sock) 
 {   
-    char buffer[2];
+    char buffer[3];
     recv_response_once(sock, buffer, 2);
-    if(buffer[0] == 'o' &&
-       buffer[1] == 'k')
+    if(strcmp(buffer, "ok") == 0)
        return true;
     return false;
 }
