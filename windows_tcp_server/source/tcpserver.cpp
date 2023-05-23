@@ -1,20 +1,32 @@
 #include "tcpserver.h"
 
+
+int set_non_block_mode(int sock) 
+{ 
+#ifdef _WIN32 
+    unsigned long mode = 1; 
+    return ioctlsocket(sock, FIONBIO, &mode);
+#else 
+    int fl = fcntl(sock, F_GETFL, 0); 
+    return fcntl(sock, F_SETFL, fl | O_NONBLOCK);
+#endif 
+}
+
 int init_netw_lib() 
 { 
-#ifdef _WIN32 // Для Windows следует вызвать WSAStartup перед началом использования сокетов 
+#ifdef _WIN32
     WSADATA wsa_data; 
     return (0 == WSAStartup(MAKEWORD(2, 2), &wsa_data)); 
 #else 
-    return 1; // Для других ОС действий не требуется 
+    return 1;
 #endif 
 }
 
 void deinit_netw_lib() 
 { 
-#ifdef _WIN32 // Для Windows следует вызвать WSACleanup в конце работы 
+#ifdef _WIN32
     WSACleanup(); 
-#else // Для других ОС действий не требуется 
+#else
 #endif 
 }
 
@@ -30,7 +42,47 @@ int sock_err(const char* function, int sock)
     return -1; 
 }
 
-void s_close(int sock) 
+int parse_err(const char* function) 
+{ 
+    int err; 
+#ifdef _WIN32 
+    err = WSAGetLastError(); 
+#else
+    err = errno; 
+#endif
+    fprintf(stderr, "%s: parse error: %d\n", function, err); 
+    return -1; 
+}
+
+int get_port(int argc, char *argv[])
+{
+    if(argc != 2)
+        return parse_err("Wrong number of args");
+ 
+    if(strlen(argv[1]) > 5 || check_if_not_ciphers(argv[1]))
+        return parse_err("Wrong port is passed");
+
+    int port = std::stoi(argv[1]);
+
+    if(port < 0 || port > 65535)
+        return parse_err("Wrong port is passed");
+    
+    return port;
+}
+
+bool check_if_not_ciphers(char *port)
+{
+    int i = 0;
+    while(port[i] != '\0')
+    {
+        if(port[i] > '9' || port[i] < '0')
+            return true;
+        i++;
+    }
+    return false;
+}
+
+void close_socket(int sock) 
 { 
 #ifdef _WIN32 
     closesocket(sock); 
@@ -39,21 +91,68 @@ void s_close(int sock)
 #endif 
 }
 
-int recv_string(int cs) 
+
+unsigned int get_client_ip(sockaddr_in sockaddr)
+{
+    return ntohl(sockaddr.sin_addr.s_addr);
+}
+
+std::string format_ip_to_str(unsigned int ip)
+{
+    return std::to_string((ip >> 24) & 0xFF) + "." + std::to_string((ip >> 16) & 0xFF) + "." +\
+            std::to_string((ip >> 8) & 0xFF) + "." + std::to_string((ip) & 0xFF);
+}
+
+std::string format_port_to_str(int port)
+{
+    return std::to_string(port);
+}
+
+std::string generate_msg_metadata(sockaddr_in transport_addres, int port)
+{
+    return format_ip_to_str(get_client_ip(transport_addres)) + ":" + format_port_to_str(port) + " ";
+}
+
+int assemble_client_msg(sockaddr_in transport_addres, int port, int temp_client, char msg_to_write[1024])
+{
+    char client_msg[512];
+
+    for(int i = 0; i < 1024; i++)
+    {
+        if(i < 512)
+            client_msg[i] = '\0';
+        msg_to_write[i] = '\0';
+    }
+    enum MESSAGE_TYPE result = MSG;
+    ssize_t msg_len = recv_string(temp_client, client_msg, sizeof(client_msg));
+    if(strcmp(client_msg, "stop") == 0)
+        result = STOP;
+    else if(strcmp(client_msg, "put") == 0)
+        result = PUT;
+
+    strcat(msg_to_write, generate_msg_metadata(transport_addres, port).c_str());
+    strcat(msg_to_write, client_msg);
+    if(msg_len > 0)
+        printf("%s\n", msg_to_write);
+
+    return result;
+}
+
+int recv_string(int sock, char *buffer, int size) 
 { 
-    char buffer[512]; 
     int curlen = 0; 
     int rcv;
 
     do 
     { 
         int i; 
-        rcv = recv(cs, buffer, sizeof(buffer), 0); 
+        rcv = recv(sock, buffer, sizeof(buffer), 0); 
         
-        for (i = 0; i < rcv; i++) 
+        for (i = 0; i < rcv && i < size; i++) 
         { 
             if (buffer[i] == '\n') 
-                return curlen; curlen++; 
+                return curlen; 
+            curlen++; 
         }
 
         if (curlen > 5000) 
@@ -67,7 +166,27 @@ int recv_string(int cs)
     return curlen; 
 }
 
-int send_notice(int cs, int len) 
+std::string get_client_msg(int sock) 
+{ 
+    std::stringstream str_stream;
+    std::string client_msg;
+    client_msg.clear();
+
+    char buffer[1024];
+    int msg_len = recv_string(sock, buffer, sizeof(buffer));
+    // if(msg_len > 2)
+        // printf("%s\n", buffer);
+
+    for(int i = 0; i < msg_len; i++)
+    {
+        client_msg += buffer[i];
+    }
+    if(msg_len > 2)
+        std::cout << client_msg << '\n';
+    return client_msg;
+}
+
+int send_notice(int sock, int len) 
 { 
     char buffer[1024]; 
     int sent = 0; 
@@ -83,10 +202,174 @@ int send_notice(int cs, int len)
     
     while (sent < (int) strlen(buffer)) 
     { 
-        ret = send(cs, buffer + sent, strlen(buffer) - sent, flags); 
+        ret = send(sock, buffer + sent, strlen(buffer) - sent, flags); 
         if (ret <= 0) 
-            return sock_err("send", cs); 
+            return sock_err("send", sock); 
         sent += ret; 
     }
     return 0; 
+}
+
+
+void serveClients(serverData &server, std::ofstream &clients_data_file)
+{
+    client temp_client;
+    char msg_to_write[1024];
+    int res;
+    char buffer[512];
+    std::vector <client> plugged_socks(0);
+    fd_set read_fd; 
+    fd_set write_fd; 
+    int max_sock_value = server.socket; 
+    int i;
+    timeval client_latency = { 5, 0 };
+    bool server_can_work = true;
+    while (server_can_work) 
+    { 
+        FD_ZERO(&read_fd); 
+        FD_ZERO(&write_fd);
+        FD_SET(server.socket, &read_fd);
+        
+        for (i = 0; i < plugged_socks.size(); i++) 
+        { 
+            FD_SET(plugged_socks[i].socket, &read_fd); 
+            FD_SET(plugged_socks[i].socket, &write_fd); 
+            
+            if (max_sock_value < plugged_socks[i].socket) 
+                max_sock_value = plugged_socks[i].socket; 
+        } 
+        
+        if (select(max_sock_value + 1, &read_fd, &write_fd, 0, &client_latency) > 0) 
+        { 
+            if (FD_ISSET(server.socket, &read_fd)) 
+            { 
+                temp_client.socket = Accept(server.socket, (struct sockaddr*) &server.ip, &server.addrlen);
+                temp_client.connected = false;
+                plugged_socks.push_back(temp_client);
+            }
+            for (i = 0; i < plugged_socks.size(); i++) 
+            { 
+                if (FD_ISSET(plugged_socks[i].socket, &read_fd)) 
+                {   
+                    res = assemble_client_msg(server.ip, server.port, plugged_socks[i].socket, msg_to_write);
+                    
+                    // printf("%d took from client\n", res);
+                    if(plugged_socks[i].connected)
+                    {
+                        send_ok(plugged_socks[i].socket);
+                        // clients_data_file << msg_to_write;
+                        // printf(" string len is: %lu\n", msg_to_write.length());
+                        // std::cout << msg_to_write << '\n';
+
+                        if(res == STOP)
+                        {
+                            server_can_work = false;
+                            for(int i = 0; i < plugged_socks.size(); i++)
+                                close_socket(plugged_socks[i].socket);
+                        }
+                    }
+                    else if(res == PUT)
+                    {
+                        plugged_socks[i].connected = true;
+                        printf("sock : %d put has been received \n", plugged_socks[i].socket);
+                    }
+                    // Сокет plugged_socks[i] доступен для чтения. Функция recv вернет данные, recvfrom - дейтаграмму 
+                }
+
+                if (FD_ISSET(plugged_socks[i].socket, &write_fd)) 
+                { 
+
+                    // Сокет plugged_socks[i] доступен для записи. Функция send и sendto будет успешно завершена 
+                } 
+            } 
+        }
+        else 
+        { 
+            // Произошел таймаут или ошибка
+        }
+    }
+}
+
+int Socket(int domain, int type, int protocol)
+{
+	int sock = socket(domain, type, protocol);
+	// af inet - ipv4
+	// tcp - sock_stream
+	// udp - sock_dgram
+	// 0 - prtocol of lower lvl protocol
+	if (sock == -1)
+		return sock_err("socket", sock);
+
+	return sock;
+} 
+
+int Bind(int sock, const sockaddr *addr, socklen_t addrlen)
+{
+	int res = bind(sock, addr, addrlen);
+	if (res == -1)
+		return sock_err("bind", sock);
+	
+    return res;
+}
+
+int Accept(int sock, sockaddr *addr, socklen_t *addrlen)
+{
+	int res = accept(sock, addr, addrlen);
+	if (res == -1)
+		return sock_err("accept", sock);
+
+	return res;
+}
+
+int Listen(int sock, int backlog)
+{
+	int res = listen(sock, backlog);
+	if (res == -1)
+        return sock_err("listen", sock);
+
+    return res;
+}
+
+int Send(int sock, const char * buf, int len, int flags)
+{
+	int res = send(sock, buf, len, flags);
+	if(res == -1)
+		return sock_err("send", sock); 
+
+	return res;
+}
+
+int send_msg(int sock, const void * buf, int len) 
+{ 
+#ifdef _WIN32 
+    int flags = 0; 
+#else 
+    int flags = MSG_NOSIGNAL; 
+#endif
+
+    // Отправка блока данных 
+    int res = send(sock, buf, len, flags); 
+    // if (res < 0) 
+        // return sock_err("send", sock);
+
+    // printf(" %d bytes sent.\n", len); 
+    return 0; 
+}
+
+int send_ok(int sock)
+{
+    return send_msg(sock, "ok", 2);
+}
+
+void init_sockaddr(sockaddr_in &addr, int family, u_int32_t addres, int port)
+{
+    memset(&addr, 0, sizeof(addr)); 
+    addr.sin_family = AF_INET; 
+    addr.sin_port = htons(port); 
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);    // all adresses
+}
+
+std::string get_msg_file_path()
+{
+    return std::string(std::filesystem::current_path()) + "/msg.txt";
 }

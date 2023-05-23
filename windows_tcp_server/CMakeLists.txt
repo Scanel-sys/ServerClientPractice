@@ -10,4 +10,4 @@ add_executable(tcpWindowsServer
     source/tcpserver.h
     source/tcpserver.cpp)
 
-target_compile_features(tcpLinuxClient PRIVATE cxx_std_17)
+target_compile_features(tcpWindowsServer PRIVATE cxx_std_17)
