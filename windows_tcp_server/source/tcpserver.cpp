@@ -117,33 +117,35 @@ int assemble_client_msg(sockaddr_in transport_addres, int port, client &temp_cli
 {
     enum MESSAGE_TYPE result = MSG;
     char client_msg[512];
-    char msg_number[4];
+    char date_and_time[15];
     ssize_t msg_len;
+
     for(int i = 0; i < 1024; i++)
     {
         if(i < 512)
             client_msg[i] = '\0';
         msg_to_write[i] = '\0';
     }
+    
     if(temp_client.connected)
     {
-        msg_len = recv_string(temp_client.socket, msg_number, sizeof(msg_number));
-        msg_len = recv_string(temp_client.socket, client_msg, sizeof(client_msg));
+        msg_len = recv(temp_client.socket, date_and_time, sizeof(date_and_time), 0);
+        msg_len = recv(temp_client.socket, client_msg, sizeof(client_msg), 0);
 
-        // std::cout << msg_number <<  ' ' << client_msg << '\n';
         if(strcmp(client_msg, "stop") == 0)
             result = STOP;
 
         strcat(msg_to_write, generate_msg_metadata(transport_addres, port).c_str());
         strcat(msg_to_write, client_msg);
-        if(msg_len > 0)
-            printf("%s\n", client_msg);
+        printf("%s\n", msg_to_write);
     }
     else
     {
         msg_len = recv_string(temp_client.socket, client_msg, 3);
         if(strcmp(client_msg, "put") == 0)
             result = PUT;
+        else
+            result = ERROR;
     }
     return result;
 }
@@ -283,13 +285,14 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
                 {   
                     res = assemble_client_msg(server.ip, server.port, plugged_socks[i], msg_to_write);
                     
-                    if(res != PUT)
+                    if(res == ERROR)
                     {
-                        printf("%d took from client\n", res);
+                        sock_err("assemble client msg", plugged_socks[i].socket);
+                    }
+                    else if(res != PUT)
+                    {
                         send_ok(plugged_socks[i].socket);
-                        // clients_data_file << msg_to_write;
-                        // printf(" string len is: %lu\n", msg_to_write.length());
-                        // std::cout << msg_to_write << '\n';
+                        clients_data_file << msg_to_write;
                         if(res == STOP)
                         {
                             server_can_work = false;
