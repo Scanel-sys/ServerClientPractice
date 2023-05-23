@@ -126,12 +126,11 @@ int assemble_client_msg(sockaddr_in transport_addres, int port, client &temp_cli
             client_msg[i] = '\0';
         msg_to_write[i] = '\0';
     }
-    
+
     if(temp_client.connected)
     {
         msg_len = recv(temp_client.socket, date_and_time, sizeof(date_and_time), 0);
         msg_len = recv(temp_client.socket, client_msg, sizeof(client_msg), 0);
-
         if(strcmp(client_msg, "stop") == 0)
             result = STOP;
 
@@ -141,11 +140,14 @@ int assemble_client_msg(sockaddr_in transport_addres, int port, client &temp_cli
     }
     else
     {
-        msg_len = recv_string(temp_client.socket, client_msg, 3);
+        msg_len = recv(temp_client.socket, client_msg, 3, 0);
         if(strcmp(client_msg, "put") == 0)
             result = PUT;
         else
+        {
             result = ERROR;
+            close_socket(temp_client.socket);
+        }
     }
     return result;
 }
@@ -196,26 +198,6 @@ int recv_put(int sock, char *buffer)
     return ERROR;
 }
 
-std::string get_client_msg(int sock) 
-{ 
-    std::stringstream str_stream;
-    std::string client_msg;
-    client_msg.clear();
-
-    char buffer[1024];
-    int msg_len = recv_string(sock, buffer, sizeof(buffer));
-    // if(msg_len > 2)
-        // printf("%s\n", buffer);
-
-    for(int i = 0; i < msg_len; i++)
-    {
-        client_msg += buffer[i];
-    }
-    if(msg_len > 2)
-        std::cout << client_msg << '\n';
-    return client_msg;
-}
-
 int send_notice(int sock, int len) 
 { 
     char buffer[1024]; 
@@ -243,24 +225,23 @@ int send_notice(int sock, int len)
 
 void serveClients(serverData &server, std::ofstream &clients_data_file)
 {
-    client temp_client;
-    char msg_to_write[1024];
-    int res;
-    char buffer[512];
     std::vector <client> plugged_socks(0);
-    fd_set read_fd; 
-    fd_set write_fd; 
     int max_sock_value = server.socket; 
-    int i;
+    client temp_client;
     timeval client_latency = { 1, 0 };
+    char msg_to_write[1024];
+    char buffer[512];
+    int res;
+    fd_set read_fd, write_fd; 
     bool server_can_work = true;
+
     while (server_can_work) 
     { 
         FD_ZERO(&read_fd); 
         FD_ZERO(&write_fd);
         FD_SET(server.socket, &read_fd);
         
-        for (i = 0; i < plugged_socks.size(); i++) 
+        for (int i = 0; i < plugged_socks.size(); i++) 
         { 
             FD_SET(plugged_socks[i].socket, &read_fd); 
             FD_SET(plugged_socks[i].socket, &write_fd); 
@@ -279,7 +260,7 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
                 temp_client.connected = false;
                 plugged_socks.push_back(temp_client);
             }
-            for (i = 0; i < plugged_socks.size(); i++) 
+            for (int i = 0; i < plugged_socks.size(); i++) 
             { 
                 if (FD_ISSET(plugged_socks[i].socket, &read_fd)) 
                 {   
@@ -292,7 +273,7 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
                     else if(res != PUT)
                     {
                         send_ok(plugged_socks[i].socket);
-                        clients_data_file << msg_to_write;
+                        clients_data_file << msg_to_write << '\n';
                         if(res == STOP)
                         {
                             server_can_work = false;
@@ -305,14 +286,14 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
                         plugged_socks[i].connected = true;
                         printf("Put received from : %d\n", plugged_socks[i].socket);
                     }
-                    // Сокет plugged_socks[i] доступен для чтения. Функция recv вернет данные, recvfrom - дейтаграмму 
                 }
-
+                /*
                 if (FD_ISSET(plugged_socks[i].socket, &write_fd)) 
                 { 
 
                     // Сокет plugged_socks[i] доступен для записи. Функция send и sendto будет успешно завершена 
                 } 
+                */
             } 
         }
         else 

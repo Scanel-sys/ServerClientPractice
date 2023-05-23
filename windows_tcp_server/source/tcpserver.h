@@ -45,7 +45,6 @@ unsigned int get_client_ip(sockaddr_in sockaddr);
 std::string format_ip_to_str(unsigned int ip);
 std::string format_port_to_str(int port);
 std::string generate_msg_metadata(sockaddr_in transport_addres, int port);
-std::string get_client_msg(int sock);
 int assemble_client_msg(sockaddr_in transport_addres, int port, client &temp_client, char msg_to_write[1024]);
 
 int recv_string(int sock, char *buffer, int size);
