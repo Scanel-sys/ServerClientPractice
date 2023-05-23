@@ -23,7 +23,7 @@
 #include <vector>
 
 
-enum MESSAGE_TYPE{PUT = 0, STOP, MSG};
+enum MESSAGE_TYPE{ERROR = -1, PUT = 0, STOP, MSG};
 
 struct serverData{
     int socket;
@@ -46,10 +46,11 @@ std::string format_ip_to_str(unsigned int ip);
 std::string format_port_to_str(int port);
 std::string generate_msg_metadata(sockaddr_in transport_addres, int port);
 std::string get_client_msg(int sock);
-int assemble_client_msg(sockaddr_in transport_addres, int port, int temp_client, char msg_to_write[1024]);
+int assemble_client_msg(sockaddr_in transport_addres, int port, client &temp_client, char msg_to_write[1024]);
 
-int recv_string(int cs, char *buffer, int size);
-int send_notice(int cs, int len);
+int recv_string(int sock, char *buffer, int size);
+int send_notice(int sock, int len);
+int recv_put(int sock, char *buffer);
 
 int sock_err(const char* function, int sock);
 int parse_err(const char* function);

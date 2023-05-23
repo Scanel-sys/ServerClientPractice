@@ -113,28 +113,38 @@ std::string generate_msg_metadata(sockaddr_in transport_addres, int port)
     return format_ip_to_str(get_client_ip(transport_addres)) + ":" + format_port_to_str(port) + " ";
 }
 
-int assemble_client_msg(sockaddr_in transport_addres, int port, int temp_client, char msg_to_write[1024])
+int assemble_client_msg(sockaddr_in transport_addres, int port, client &temp_client, char msg_to_write[1024])
 {
+    enum MESSAGE_TYPE result = MSG;
     char client_msg[512];
-
+    char msg_number[4];
+    ssize_t msg_len;
     for(int i = 0; i < 1024; i++)
     {
         if(i < 512)
             client_msg[i] = '\0';
         msg_to_write[i] = '\0';
     }
-    enum MESSAGE_TYPE result = MSG;
-    ssize_t msg_len = recv_string(temp_client, client_msg, sizeof(client_msg));
-    if(strcmp(client_msg, "stop") == 0)
-        result = STOP;
-    else if(strcmp(client_msg, "put") == 0)
-        result = PUT;
+    if(temp_client.connected)
+    {
+        msg_len = recv_string(temp_client.socket, msg_number, sizeof(msg_number));
+        msg_len = recv_string(temp_client.socket, client_msg, sizeof(client_msg));
 
-    strcat(msg_to_write, generate_msg_metadata(transport_addres, port).c_str());
-    strcat(msg_to_write, client_msg);
-    if(msg_len > 0)
-        printf("%s\n", msg_to_write);
+        // std::cout << msg_number <<  ' ' << client_msg << '\n';
+        if(strcmp(client_msg, "stop") == 0)
+            result = STOP;
 
+        strcat(msg_to_write, generate_msg_metadata(transport_addres, port).c_str());
+        strcat(msg_to_write, client_msg);
+        if(msg_len > 0)
+            printf("%s\n", client_msg);
+    }
+    else
+    {
+        msg_len = recv_string(temp_client.socket, client_msg, 3);
+        if(strcmp(client_msg, "put") == 0)
+            result = PUT;
+    }
     return result;
 }
 
@@ -164,6 +174,24 @@ int recv_string(int sock, char *buffer, int size)
     } while (rcv > 0);
 
     return curlen; 
+}
+
+int recv_put(int sock, char *buffer)
+{
+    int res = recv(sock, buffer, 3, 0);
+    if(res < 0)
+    {
+        sock_err("recv put", sock);
+        return ERROR;
+    }
+    
+    if(buffer[0] == 'p' &&
+        buffer[1] == 'u' &&
+        buffer[2] == 't')
+        return PUT;
+    
+    sock_err("recv put", sock);
+    return ERROR;
 }
 
 std::string get_client_msg(int sock) 
@@ -222,7 +250,7 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
     fd_set write_fd; 
     int max_sock_value = server.socket; 
     int i;
-    timeval client_latency = { 5, 0 };
+    timeval client_latency = { 1, 0 };
     bool server_can_work = true;
     while (server_can_work) 
     { 
@@ -244,6 +272,8 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
             if (FD_ISSET(server.socket, &read_fd)) 
             { 
                 temp_client.socket = Accept(server.socket, (struct sockaddr*) &server.ip, &server.addrlen);
+                printf("Client connected : %d\n", temp_client.socket);
+                set_non_block_mode(temp_client.socket);
                 temp_client.connected = false;
                 plugged_socks.push_back(temp_client);
             }
@@ -251,16 +281,15 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
             { 
                 if (FD_ISSET(plugged_socks[i].socket, &read_fd)) 
                 {   
-                    res = assemble_client_msg(server.ip, server.port, plugged_socks[i].socket, msg_to_write);
+                    res = assemble_client_msg(server.ip, server.port, plugged_socks[i], msg_to_write);
                     
-                    // printf("%d took from client\n", res);
-                    if(plugged_socks[i].connected)
+                    if(res != PUT)
                     {
+                        printf("%d took from client\n", res);
                         send_ok(plugged_socks[i].socket);
                         // clients_data_file << msg_to_write;
                         // printf(" string len is: %lu\n", msg_to_write.length());
                         // std::cout << msg_to_write << '\n';
-
                         if(res == STOP)
                         {
                             server_can_work = false;
@@ -268,10 +297,10 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
                                 close_socket(plugged_socks[i].socket);
                         }
                     }
-                    else if(res == PUT)
+                    else
                     {
                         plugged_socks[i].connected = true;
-                        printf("sock : %d put has been received \n", plugged_socks[i].socket);
+                        printf("Put received from : %d\n", plugged_socks[i].socket);
                     }
                     // Сокет plugged_socks[i] доступен для чтения. Функция recv вернет данные, recvfrom - дейтаграмму 
                 }
