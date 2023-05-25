@@ -2,6 +2,7 @@
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h> 
     #include <winsock2.h> 
+    #include <WS2tcpip.h>
     // Директива линковщику: использовать библиотеку сокетов 
     #pragma comment(lib, "ws2_32.lib") 
 #else // LINUX 
