@@ -8,7 +8,6 @@ int main(int argc, char *argv[])
     char fl_path[MAX_PATH];
 
     init_netw_lib();
-
     parse_cmd(argc, argv, ip_addr, port, fl_path);
 
     if(!(std::filesystem::exists(fl_path)))
@@ -19,10 +18,9 @@ int main(int argc, char *argv[])
 
     int client_socket = Socket(AF_INET, SOCK_DGRAM, 0);; 
     std::vector <datagram> datagrams = get_datagrams(fl_path);
+    struct sockaddr_in ip_addr_netstyle; 
 
-    struct sockaddr_in ip_addr_internet_style; 
-
-    init_udp_addr(ip_addr_internet_style, AF_INET, ip_addr, port);
+    init_udp_addr(ip_addr_netstyle, AF_INET, ip_addr, port);
 
     int msgs_amount = datagrams.size(), sent_msgs = 0;
     char response_data_buff[80];
@@ -31,17 +29,21 @@ int main(int argc, char *argv[])
     {        
         for(int i = 0; i < msgs_amount; i++)
         {
-            send_msg(client_socket, &ip_addr_internet_style, 
+            send_msg(client_socket, &ip_addr_netstyle, 
                     datagrams[i].msg, datagrams[i].msg_size);
+            printf("Sending msg : %d\n", datagrams[i].msg_index);
         }
         
-        recv_response(client_socket, response_data_buff);
-        datagrams = get_missed_msgs(datagrams, response_data_buff, 80);
+        if(recv_response(client_socket, response_data_buff) > 0)
+        {
+            printf("Some msgs didnt arrive\nResending...\n");
+            
+            datagrams = get_missed_msgs(datagrams, response_data_buff, SERVER_DATAGRAM_SZ);
 
-        sent_msgs += msgs_amount - datagrams.size();
-        msgs_amount = datagrams.size();
+            sent_msgs += msgs_amount - datagrams.size();
+            msgs_amount = datagrams.size();
+        }
     }
-
     close_socket(client_socket);
     deinit_netw_lib();
     return 0; 

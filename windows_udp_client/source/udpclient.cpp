@@ -189,41 +189,21 @@ parsed_time parse_time(std::string time)
 
 int assemble_msg(parsed_message &msg_parts, char *result)
 {
-    char buffer[2];
-    std::string output;
-
     memcpy(result + 4, &msg_parts.date1.day, 1);
     memcpy(result + 5, &msg_parts.date1.month, 1);
     memcpy(result + 6, &msg_parts.date1.year, 2);
-    // strncat(result, &msg_parts.date1.day, 1);
-    // strncat(result, &msg_parts.date1.month, 1);
-    // std::memcpy(buffer, &msg_parts.date1.year, 2);
-    // strncat(result, buffer, 2);
     
     memcpy(result + 8, &msg_parts.date2.day, 1);
     memcpy(result + 9, &msg_parts.date2.month, 1);
     memcpy(result + 10, &msg_parts.date2.year, 2);
 
-    // strncat(result, &msg_parts.date2.day, 1);
-    // strncat(result, &msg_parts.date2.month, 1);
-    // std::memcpy(buffer, &msg_parts.date2.year, 2);
-    // strncat(result, buffer, 2);
-
     memcpy(result + 12, &msg_parts.time.hour, 1);
     memcpy(result + 13, &msg_parts.time.min, 1);
     memcpy(result + 14, &msg_parts.time.sec, 1);
 
-    // strncat(result, &msg_parts.time.hour, 1);
-    // strncat(result, &msg_parts.time.min, 1);
-    // strncat(result, &msg_parts.time.sec, 1);
-    // strcat(result, " ");
-    // result[15] = ' ';
     memcpy(result + 15, msg_parts.msg_text.c_str(), msg_parts.msg_text.size());
-    // strncat(result, msg_parts.msg_text.c_str(), msg_parts.msg_text.size());
-    // strncat(result, msg_parts.msg_text.c_str(), msg_parts.msg_text.size());    
 
-    // output.assign(result, 11 + msg_parts.msg_text.size());
-    return msg_parts.msg_text.size() + 17;
+    return msg_parts.msg_text.size() + 16;
 }
 
 std::vector <datagram> 
@@ -232,12 +212,10 @@ get_datagrams(char *fl_path)
     std::ifstream data_file;
     
     unsigned int msg_index = 0;
-    unsigned msg_index_internet_format;
+    unsigned net_msg_index;
     std::vector <datagram> datagrams(0);
     datagram temp_datagram;
-    to_htonl htonl_union;
     parsed_message msg_parts;
-    char assembled_msg[1024];
     std::string buffer;
 
     data_file.open(fl_path);
@@ -245,16 +223,15 @@ get_datagrams(char *fl_path)
     {
         if(buffer.length() == 0)
             continue;
-        
+             
         clean_buffer(temp_datagram.msg, 1024);
         temp_datagram.msg_index = msg_index;
-        msg_index_internet_format = htonl(msg_index++);
-        memcpy(temp_datagram.msg, &msg_index_internet_format, 4);
+        net_msg_index = htonl(msg_index++);
+        memcpy(temp_datagram.msg, &net_msg_index, 4);
 
         msg_parts = parse_msg(buffer);
-        std::cout << msg_parts.msg_text << '\n';
         temp_datagram.msg_size = assemble_msg(msg_parts, temp_datagram.msg);
-        
+
         datagrams.push_back(temp_datagram);
     }
     data_file.close();
@@ -295,59 +272,56 @@ std::vector<datagram> get_missed_msgs(std::vector<datagram> &datagrams, char *re
 {
     int temp_msg_number;
     std::vector<datagram> result = datagrams;
-    for(int i = 0; i < 80 && response_data_buff[i] != '\0'; i+=4)
+    for(int i = 0; i < 80; i+=4)
     {
         std::memcpy(&temp_msg_number, &response_data_buff[i], 4);
         temp_msg_number = ntohl(temp_msg_number);
-        bool found_msg = false;
-        for(int counter = 0; counter < result.size() && !found_msg; counter++)
+        if(temp_msg_number >= 0)
         {
-            if(result[counter].msg_index == temp_msg_number)
+            bool found_msg = false;
+            for(int counter = 0; counter < result.size() && !found_msg; counter++)
             {
-                result.erase(result.begin() + counter);
-                found_msg = true;
+                if(result[counter].msg_index == temp_msg_number)
+                {
+                    result.erase(result.begin() + counter);
+                    found_msg = true;
+                }
             }
         }
     }
     return result;
 }
 
-unsigned int recv_response(int socket, char datagram[80])
+unsigned int recv_response(int socket, char *datagram)
 { 
-    clean_buffer(datagram, 80);
+    clean_buffer(datagram, SERVER_DATAGRAM_SZ);
     struct timeval tv = {0, 100*1000}; // 100 msec
     int res;
-    int datagram_size = 80;
+
     fd_set read_fd; 
     FD_ZERO(&read_fd); 
     FD_SET(socket, &read_fd);
     
-    // Проверка - если в сокете входящие дейтаграммы 
-    // (ожидание в течение tv) 
     res = select(socket + 1, &read_fd, 0, 0, &tv); 
     if (res > 0) 
     { 
-        // Данные есть, считывание их 
         struct sockaddr_in addr; 
         socklen_t addrlen = sizeof(addr);
-        int received = recvfrom(socket, datagram, datagram_size, 0, (struct sockaddr*) &addr, &addrlen);
+        int received = recvfrom(socket, datagram, SERVER_DATAGRAM_SZ,
+                                 0, (struct sockaddr*) &addr, &addrlen);
         if (received <= 0) 
-        { 
-            // Ошибка считывания полученной дейтаграммы 
-            sock_err("recvfrom", socket); 
-            return 0; 
-        }
-        return get_addr_from_dns_datagram(datagram, datagram_size); 
+            return sock_err("recvfrom", socket);
+
+        return res;
     } 
     else if (res == 0) 
     { 
-        // Данных в сокете нет, возврат ошибки 
+        //nodata
         return 0; 
     } 
     else 
     { 
-        sock_err("select", socket); 
-        return 0; 
+        return sock_err("select", socket);
     } 
 }
 

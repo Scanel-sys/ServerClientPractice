@@ -30,7 +30,7 @@
 
 #define DNS_PORT 53
 #define MAX_PATH 32768
-
+#define SERVER_DATAGRAM_SZ 80
 
 union to_htonl{
     unsigned int htonl_index;
@@ -94,12 +94,9 @@ get_datagrams(char *fl_path);
 void send_request(int socket, struct sockaddr_in* addr);
 void send_msg(int socket, struct sockaddr_in* addr, const void *msg, int msg_len);
 std::vector<datagram> get_missed_msgs(std::vector<datagram> &datagrams, char *response_data_buff, int size);
-// Функция принимает дейтаграмму от удаленной стороны. 
-// Возвращает 0, если в течение 100 миллисекунд не было получено ни одной дейтаграммы 
-unsigned int recv_response(int socket, char datagram[80]);
+unsigned int recv_response(int socket, char *datagram);
 
 // Функция извлекает IPv4-адрес из DNS-дейтаграммы. 
-// Задание л/р не требует детального изучения кода этой функции
 unsigned int get_addr_from_dns_datagram(const char* datagram, int size);
 
 std::vector<std::string> 
