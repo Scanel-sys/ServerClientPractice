@@ -32,10 +32,16 @@
 #define MAX_PATH 32768
 
 
+union to_htonl{
+    unsigned int htonl_index;
+    char bytes[4];
+};
+
 struct datagram
 {
     int msg_index;
-    std::string msg;
+    int msg_size;
+    char msg[1024];
 };
 
 struct parsed_time
@@ -49,7 +55,7 @@ struct parsed_date
 {
     char day;
     char month;
-    unsigned short year;
+    uint16_t year;
 };
 
 struct parsed_message
@@ -79,7 +85,7 @@ parsed_date parse_date(std::string date);
 parsed_time parse_time(std::string time);
 parsed_message parse_msg(std::string source);
 
-std::string assemble_msg(parsed_message msg_parts);
+int assemble_msg(parsed_message &msg_parts, char *result);
 
 std::vector <datagram> 
 get_datagrams(char *fl_path);

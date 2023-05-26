@@ -32,8 +32,9 @@ int main(int argc, char *argv[])
         for(int i = 0; i < msgs_amount; i++)
         {
             send_msg(client_socket, &ip_addr_internet_style, 
-                    datagrams[i].msg.c_str(), datagrams[i].msg.size());
+                    datagrams[i].msg, datagrams[i].msg_size);
         }
+        
         recv_response(client_socket, response_data_buff);
         datagrams = get_missed_msgs(datagrams, response_data_buff, 80);
 

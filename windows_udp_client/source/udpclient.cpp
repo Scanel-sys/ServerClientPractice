@@ -187,31 +187,43 @@ parsed_time parse_time(std::string time)
     return temp_time;
 }
 
-std::string assemble_msg(parsed_message msg_parts)
+int assemble_msg(parsed_message &msg_parts, char *result)
 {
-    char result[1024];
     char buffer[2];
     std::string output;
-    clean_buffer(result, 1024);
 
+    memcpy(result + 4, &msg_parts.date1.day, 1);
+    memcpy(result + 5, &msg_parts.date1.month, 1);
+    memcpy(result + 6, &msg_parts.date1.year, 2);
+    // strncat(result, &msg_parts.date1.day, 1);
+    // strncat(result, &msg_parts.date1.month, 1);
+    // std::memcpy(buffer, &msg_parts.date1.year, 2);
+    // strncat(result, buffer, 2);
     
-    strncat(result, &msg_parts.date1.day, 1);
-    strncat(result, &msg_parts.date1.month, 1);
-    std::memcpy(buffer, &msg_parts.date1.year, 2);
-    strncat(result, buffer, 2);
-    
-    strncat(result, &msg_parts.date2.day, 1);
-    strncat(result, &msg_parts.date2.month, 1);
-    std::memcpy(buffer, &msg_parts.date2.year, 2);
-    strncat(result, buffer, 2);
+    memcpy(result + 8, &msg_parts.date2.day, 1);
+    memcpy(result + 9, &msg_parts.date2.month, 1);
+    memcpy(result + 10, &msg_parts.date2.year, 2);
 
-    strncat(result, &msg_parts.time.hour, 1);
-    strncat(result, &msg_parts.time.min, 1);
-    strncat(result, &msg_parts.time.sec, 1);
-    strncat(result, msg_parts.msg_text.c_str(), msg_parts.msg_text.size());    
+    // strncat(result, &msg_parts.date2.day, 1);
+    // strncat(result, &msg_parts.date2.month, 1);
+    // std::memcpy(buffer, &msg_parts.date2.year, 2);
+    // strncat(result, buffer, 2);
 
-    output.assign(result, 11 + msg_parts.msg_text.size());
-    return output;
+    memcpy(result + 12, &msg_parts.time.hour, 1);
+    memcpy(result + 13, &msg_parts.time.min, 1);
+    memcpy(result + 14, &msg_parts.time.sec, 1);
+
+    // strncat(result, &msg_parts.time.hour, 1);
+    // strncat(result, &msg_parts.time.min, 1);
+    // strncat(result, &msg_parts.time.sec, 1);
+    // strcat(result, " ");
+    // result[15] = ' ';
+    memcpy(result + 15, msg_parts.msg_text.c_str(), msg_parts.msg_text.size());
+    // strncat(result, msg_parts.msg_text.c_str(), msg_parts.msg_text.size());
+    // strncat(result, msg_parts.msg_text.c_str(), msg_parts.msg_text.size());    
+
+    // output.assign(result, 11 + msg_parts.msg_text.size());
+    return msg_parts.msg_text.size() + 17;
 }
 
 std::vector <datagram> 
@@ -219,12 +231,13 @@ get_datagrams(char *fl_path)
 {
     std::ifstream data_file;
     
-    int msg_index = 0;
-    int msg_index_internet_format;
-    char index_buffer[4];
+    unsigned int msg_index = 0;
+    unsigned msg_index_internet_format;
     std::vector <datagram> datagrams(0);
     datagram temp_datagram;
+    to_htonl htonl_union;
     parsed_message msg_parts;
+    char assembled_msg[1024];
     std::string buffer;
 
     data_file.open(fl_path);
@@ -233,14 +246,15 @@ get_datagrams(char *fl_path)
         if(buffer.length() == 0)
             continue;
         
+        clean_buffer(temp_datagram.msg, 1024);
         temp_datagram.msg_index = msg_index;
         msg_index_internet_format = htonl(msg_index++);
-        std::memcpy(index_buffer, &msg_index_internet_format, 4);
-        
-        msg_parts = parse_msg(buffer);
-        temp_datagram.msg.assign(index_buffer, 4);
-        temp_datagram.msg += assemble_msg(msg_parts);
+        memcpy(temp_datagram.msg, &msg_index_internet_format, 4);
 
+        msg_parts = parse_msg(buffer);
+        std::cout << msg_parts.msg_text << '\n';
+        temp_datagram.msg_size = assemble_msg(msg_parts, temp_datagram.msg);
+        
         datagrams.push_back(temp_datagram);
     }
     data_file.close();
