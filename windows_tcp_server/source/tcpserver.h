@@ -11,7 +11,6 @@
     #include <netdb.h> 
     #include <unistd.h>
     #include <errno.h> 
-
     #include <fcntl.h>      //lib for non blocking behaviour
 #endif
     

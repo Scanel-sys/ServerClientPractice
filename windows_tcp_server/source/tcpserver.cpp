@@ -379,7 +379,7 @@ void init_sockaddr(sockaddr_in &addr, int family, u_int32_t addres, int port)
     memset(&addr, 0, sizeof(addr)); 
     addr.sin_family = AF_INET; 
     addr.sin_port = htons(port); 
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);    // all adresses
+    addr.sin_addr.s_addr = htonl(addres);    // all adresses
 }
 
 std::string get_msg_file_path()

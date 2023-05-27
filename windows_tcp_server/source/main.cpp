@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
 
     set_non_block_mode(server.socket);
     
-    if(Bind(server.socket, (struct sockaddr*) &server.ip, sizeof(server.ip)) == 0 &&
+    if(Bind(server.socket, (struct sockaddr*) &server.ip, server.addrlen) == 0 &&
         Listen(server.socket, 1) == 0)
     {
         std::ofstream clients_data_file;
