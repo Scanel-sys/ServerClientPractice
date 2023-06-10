@@ -17,12 +17,12 @@
     #include <netinet/in.h>
 #endif
 
+#include <sys/stat.h>
 #include <stdio.h> 
 #include <cstdlib>
 #include <string.h>
 #include <iostream>
 #include <fstream>
-#include <chrono>
 #include <thread>
 #include <sstream>
 #include <vector>
@@ -75,6 +75,7 @@ int Socket(int domain, int type, int protocol);
 int sock_err(const char* function, int sock);
 void init_udp_addr(sockaddr_in &addr, int family, const char *addres, int port);
 
+bool if_file_exists(const std::string &fl_name);
 int parse_err(const char* function);
 int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[256]);
 int parse_cmd_to_addr(char *cmd_addr, int &i, char *addres);

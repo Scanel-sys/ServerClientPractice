@@ -3,6 +3,7 @@
     #include <windows.h> 
     #include <winsock2.h> 
     #include <ws2tcpip.h> 
+    #include <direct.h>
     // Директива линковщику: использовать библиотеку сокетов 
     #pragma comment(lib, "ws2_32.lib") 
 #else // LINUX 
@@ -12,8 +13,10 @@
     #include <unistd.h>
     #include <netdb.h> 
     #include <errno.h> 
+    #include <unistd.h>
 #endif
 
+#include <sys/stat.h>
 #include <stdio.h> 
 #include <cstdlib>
 #include <string.h>
@@ -23,9 +26,9 @@
 #include <thread>
 #include <sstream>
 #include <vector>
+#include <limits.h>
 
 #define WEBHOST "google.com"
-#define MAX_PATH 32768
 
 struct parsed_date;
 struct parsed_time;
@@ -38,7 +41,10 @@ int sock_err(const char* function, int sock);
 void close_sock(int sock);
 
 unsigned int get_host_ipn(const char* name);
+unsigned int get_client_ip(sockaddr_in sockaddr);
+std::string ip_to_str(unsigned int ip);
 
+bool if_file_exists(const std::string &fl_name);
 int parse_err(const char* function);
 int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[256]);
 int parse_cmd_to_addr(char *cmd_addr, int &i, char *addres);
@@ -48,8 +54,6 @@ int parse_cmd_to_path(char *cmd_flname, char *fl_path);
 parsed_date parse_date(std::string date);
 parsed_time parse_time(std::string time);
 parsed_message parse_msg(std::string source);
-
-
 
 void handle_msg(int sock, std::string source);
 

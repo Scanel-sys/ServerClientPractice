@@ -7,14 +7,15 @@
 #include <netdb.h> 
 #include <errno.h> 
 #include <fcntl.h>      //lib for non blocking behaviour
-#include <filesystem>
 
+#include <unistd.h>
 #include <stdio.h> 
 #include <string.h>
 #include <fstream>
 #include <unistd.h>
 #include <vector>
 #include <iostream>
+#include <limits.h>
 
 
 #define  MAXEVENTS_PER_CALL         (20)
@@ -23,6 +24,15 @@
 #define  SERVICE_INFO_SIZE          (15)
 #define  RAW_MSG_SIZE             (1024)
 
+#define  FIRST_DAY_SHIFT             (4)
+#define  FIRST_MONTH_SHIFT           (5)
+#define  FIRST_YEAR_SHIFT            (6)
+#define  SECOND_DAY_SHIFT            (8)
+#define  SECOND_MONTH_SHIFT          (9)
+#define  SECOND_YEAR_SHIFT          (10)
+#define  HOURS_SHIFT                (12)
+#define  MINUTES_SHIFT              (13)
+#define  SECONDS_SHIFT              (14)
 
 enum MESSAGE_TYPE{ERROR = -1, STOP, MSG};
 
@@ -47,6 +57,27 @@ struct ServerData{
     socklen_t addrlen;
 };
 
+struct parsed_time
+{
+    char hour;
+    char min;
+    char sec;
+};
+
+struct parsed_date
+{
+    char day;
+    char month;
+    unsigned short year;
+};
+
+struct parsed_message
+{
+    struct parsed_date date1;
+    struct parsed_date date2;
+    struct parsed_time time;
+    std::string msg_text;
+};
 
 int init_netw_lib();
 void deinit_netw_lib();
@@ -73,14 +104,17 @@ struct ClientData init_temp_client(struct PortData &portData);
 uint32_t get_msg_index(char *buffer);
 bool if_old_msg(struct ClientData &client, uint32_t msg_numb);
 
-uint32_t ip_to_normal_format(sockaddr_in sockaddr);
+uint32_t ip_to_str(sockaddr_in sockaddr);
 std::string ip_to_str(uint32_t ip);
 std::string port_to_str(int port);
 int char_to_int(char *buffer);
 
 std::string gen_msg_metadata(struct PortData &msg_dealer);
-int assemble_client_msg(struct PortData &msg_dealer, char raw_msg[1024], char msg_buffer[1024]);
-void write_msg_to_file(std::ofstream &file, char source[1024]);
+std::string get_parsed_datetime(char raw_msg[RAW_MSG_SIZE]);
+std::string get_parsed_msg_text(char raw_msg[RAW_MSG_SIZE]);
+std::string date_time_to_str(struct parsed_message &new_msg);
+int assemble_client_msg(struct PortData &msg_dealer, char raw_msg[RAW_MSG_SIZE], char msg_buffer[RAW_MSG_SIZE]);
+void write_msg_to_file(std::ofstream &file, char source[RAW_MSG_SIZE]);
 uint32_t get_msg_number_netformat(char *raw_msg);
 void recv_msg(struct ServerData &server, int port_index, char *place_for_msg, size_t buff_len);
 int send_msg_number(PortData &port_data, const void *number);

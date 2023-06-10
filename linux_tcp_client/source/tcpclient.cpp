@@ -71,6 +71,7 @@ void close_sock(int sock)
 #endif 
 }
 
+
 // Функция определяет IP-адрес узла по его имени. 
 // Адрес возвращается в сетевом порядке байтов. 
 unsigned int get_host_ipn(const char* name) 
@@ -97,6 +98,23 @@ unsigned int get_host_ipn(const char* name)
     return ip4addr; 
 }
 
+unsigned int get_client_ip(sockaddr_in sockaddr)
+{
+    return ntohl(sockaddr.sin_addr.s_addr);
+}
+
+std::string ip_to_str(unsigned int ip)
+{
+    return std::to_string((ip >> 24) & 0xFF) + "." + std::to_string((ip >> 16) & 0xFF) + "." +\
+            std::to_string((ip >> 8) & 0xFF) + "." + std::to_string((ip) & 0xFF);
+}
+
+
+bool if_file_exists(const std::string &fl_name)
+{
+    struct stat buffer;
+    return (stat (fl_name.c_str(), &buffer) == 0);
+}
 
 int parse_err(const char* function) 
 { 
@@ -110,7 +128,7 @@ int parse_err(const char* function)
     return -1; 
 }
 
-int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[MAX_PATH])
+int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[PATH_MAX])
 {
     if(argc != 3)
         return parse_err("Wrong number of parameters passed");
@@ -159,9 +177,9 @@ int parse_cmd_to_port(char *cmd_addr, int i)
     return port;
 }
 
-int parse_cmd_to_path(char *cmd_flname, char fl_path[MAX_PATH])
+int parse_cmd_to_path(char *cmd_flname, char fl_path[PATH_MAX])
 {
-    if (getcwd(fl_path, MAX_PATH) == NULL)
+    if (getcwd(fl_path, PATH_MAX) == NULL)
     {
         perror("getcwd() error");
         return 1;
@@ -265,7 +283,6 @@ int send_msg(int sock, const void * buf, int len)
     if (res < 0) 
         return sock_err("send", sock);
 
-    printf(" %d bytes sent.\n", len); 
     return 0; 
 }
 
@@ -304,9 +321,11 @@ int Socket(int domain, int type, int protocol)
 
 int try_to_connect(int sock, sockaddr_in &addr)
 {
+    printf("Connecting to : %s\n", ip_to_str(get_client_ip(addr)).c_str());
+
     using namespace std::this_thread;
     using namespace std::chrono;
-
+    
     for(int i = 0; i < 10; i++)
     {
         if (connect(sock, (struct sockaddr*) &addr, sizeof(addr)) == 0)
@@ -319,6 +338,7 @@ int try_to_connect(int sock, sockaddr_in &addr)
         }
         sleep_for(milliseconds(100));
     }
+    printf("Connected\n");
     return 0;
 }
 
@@ -370,10 +390,7 @@ int recv_response_to_file(int sock, FILE* f)
 
 int recv_response_once(int sock, char *buffer, int len) 
 {   
-    int res;
-    if((res = recv(sock, buffer, len, 0)) > 0)  
-        printf(" %d bytes received\n", res); 
-    
+    int res = recv(sock, buffer, len, 0);
     if (res < 0) 
         return sock_err("recv_resp", sock);
     return 0; 

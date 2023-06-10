@@ -59,6 +59,12 @@ void init_udp_addr(sockaddr_in &addr, int family, const char *addres, int port)
 }
 
 
+bool if_file_exists(const std::string &fl_name)
+{
+    struct stat buffer;
+    return (stat (fl_name.c_str(), &buffer) == 0);
+}
+
 int parse_err(const char* function) 
 { 
     int err; 
@@ -274,7 +280,7 @@ std::vector<datagram> get_missed_msgs(std::vector<datagram> &datagrams, char *re
     std::vector<datagram> result = datagrams;
     for(int i = 0; i < 80; i+=4)
     {
-        std::memcpy(&temp_msg_number, &response_data_buff[i], 4);
+        memcpy(&temp_msg_number, &response_data_buff[i], 4);
         temp_msg_number = ntohl(temp_msg_number);
         if(temp_msg_number >= 0)
         {

@@ -91,57 +91,112 @@ void close_socket(int sock)
 #endif 
 }
 
+void close_sockets(struct ServerData &server)
+{
+    for(int i = 0; i < server.plugged_socks.size(); i++)
+    {
+        if(server.plugged_socks[i].connected)
+        {
+            close_socket(server.plugged_socks[i].socket);
+            printf("Peer disconnected : %s\n", ip_to_str(get_client_ip(server.plugged_socks[i].ip)).c_str());
+        }
+    }
+}
+
 
 unsigned int get_client_ip(sockaddr_in sockaddr)
 {
     return ntohl(sockaddr.sin_addr.s_addr);
 }
 
-std::string format_ip_to_str(unsigned int ip)
+std::string ip_to_str(unsigned int ip)
 {
     return std::to_string((ip >> 24) & 0xFF) + "." + std::to_string((ip >> 16) & 0xFF) + "." +\
             std::to_string((ip >> 8) & 0xFF) + "." + std::to_string((ip) & 0xFF);
 }
 
-std::string format_port_to_str(int port)
+std::string port_to_str(int port)
 {
     return std::to_string(port);
 }
 
 std::string generate_msg_metadata(sockaddr_in transport_addres, int port)
 {
-    return format_ip_to_str(get_client_ip(transport_addres)) + ":" + format_port_to_str(port) + " ";
+    return ip_to_str(get_client_ip(transport_addres)) + ":" + port_to_str(port) + " ";
 }
 
-int assemble_client_msg(sockaddr_in transport_addres, int port, client &temp_client, char msg_to_write[1024])
+std::string get_parsed_datetime(char raw_msg[MSG_MAX_SIZE])
+{
+    struct ParsedMessage new_msg;
+
+    memcpy(&new_msg.date1.day, raw_msg + FIRST_DAY_SHIFT, sizeof(new_msg.date1.day));
+    memcpy(&new_msg.date1.month, raw_msg + FIRST_MONTH_SHIFT, sizeof(new_msg.date1.month));
+    memcpy(&new_msg.date1.year, raw_msg + FIRST_YEAR_SHIFT, sizeof(new_msg.date1.year));
+    new_msg.date1.year = ntohs(new_msg.date1.year);
+
+    memcpy(&new_msg.date2.day, raw_msg + SECOND_DAY_SHIFT, sizeof(new_msg.date1.day));
+    memcpy(&new_msg.date2.month, raw_msg + SECOND_MONTH_SHIFT, sizeof(new_msg.date1.month));
+    memcpy(&new_msg.date2.year, raw_msg + SECOND_YEAR_SHIFT, sizeof(new_msg.date1.year));
+    new_msg.date2.year = ntohs(new_msg.date2.year);
+
+    memcpy(&new_msg.time.hour, raw_msg + HOURS_SHIFT, sizeof(new_msg.time.hour));
+    memcpy(&new_msg.time.min, raw_msg + MINUTES_SHIFT, sizeof(new_msg.time.min));
+    memcpy(&new_msg.time.sec, raw_msg + SECONDS_SHIFT, sizeof(new_msg.time.sec));
+
+    new_msg.msg_text = date_time_to_str(new_msg);
+    return new_msg.msg_text;
+}
+
+std::string get_parsed_msg_text(char raw_msg[MSG_MAX_SIZE])
+{
+    char temp[MSG_MAX_SIZE];
+    temp[0] = '\0';
+    strcat(temp, raw_msg + SERVICE_INFO_SIZE);
+    std::string result(temp);
+    return result;
+}
+
+std::string date_time_to_str(struct ParsedMessage &new_msg)
+{
+    std::string result;
+    result += std::to_string(new_msg.date1.day) + ".";
+    result += std::to_string(new_msg.date1.month) + ".";
+    result += std::to_string(new_msg.date1.year) + " ";
+
+    result += std::to_string(new_msg.date2.day) + ".";
+    result += std::to_string(new_msg.date2.month) + ".";
+    result += std::to_string(new_msg.date2.year) + " ";
+
+    result += std::to_string(new_msg.time.hour) + ":";
+    result += std::to_string(new_msg.time.min) + ":";
+    result += std::to_string(new_msg.time.sec) + " ";
+    return result;
+}
+
+int assemble_client_msg(struct ServerData &server, struct Client &temp_client, char msg_to_write[MSG_MAX_SIZE])
 {
     enum MESSAGE_TYPE result = MSG;
-    char client_msg[512];
-    char date_and_time[15];
-    ssize_t msg_len;
 
-    for(int i = 0; i < 1024; i++)
-    {
-        if(i < 512)
-            client_msg[i] = '\0';
+    for(int i = 0; i < MSG_MAX_SIZE; i++)
         msg_to_write[i] = '\0';
-    }
-
+    
     if(temp_client.connected)
     {
-        msg_len = recv(temp_client.socket, date_and_time, sizeof(date_and_time), 0);
-        msg_len = recv(temp_client.socket, client_msg, sizeof(client_msg), 0);
-        if(strcmp(client_msg, "stop") == 0)
+        char raw_msg[MSG_MAX_SIZE] = {0};
+        recv(temp_client.socket, raw_msg, MSG_MAX_SIZE, 0);
+        std::string msg_text = get_parsed_msg_text(raw_msg);
+        if(strcmp(msg_text.c_str(), "stop") == 0)
             result = STOP;
 
-        strcat(msg_to_write, generate_msg_metadata(transport_addres, port).c_str());
-        strcat(msg_to_write, client_msg);
-        printf("%s\n", msg_to_write);
+        strcat(msg_to_write, generate_msg_metadata(server.ip, server.port).c_str());
+        strcat(msg_to_write, get_parsed_datetime(raw_msg).c_str());
+        strcat(msg_to_write, msg_text.c_str());
     }
     else
     {
-        msg_len = recv(temp_client.socket, client_msg, 3, 0);
-        if(strcmp(client_msg, "put") == 0)
+        char buffer[4];
+        recv(temp_client.socket, buffer, 3, 0);
+        if(strcmp(buffer, "put") == 0)
             result = PUT;
         else
         {
@@ -223,14 +278,12 @@ int send_notice(int sock, int len)
 }
 
 
-void serveClients(serverData &server, std::ofstream &clients_data_file)
+void serveClients(ServerData &server, std::ofstream &clients_data_file)
 {
-    std::vector <client> plugged_socks(0);
     int max_sock_value = server.socket; 
-    client temp_client;
+    Client temp_client;
     timeval client_latency = { 1, 0 };
-    char msg_to_write[1024];
-    char buffer[512];
+    char msg_to_write[MSG_MAX_SIZE];
     int res;
     fd_set read_fd, write_fd; 
     bool server_can_work = true;
@@ -241,13 +294,13 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
         FD_ZERO(&write_fd);
         FD_SET(server.socket, &read_fd);
         
-        for (int i = 0; i < plugged_socks.size(); i++) 
+        for (int i = 0; i < server.plugged_socks.size(); i++) 
         { 
-            FD_SET(plugged_socks[i].socket, &read_fd); 
-            FD_SET(plugged_socks[i].socket, &write_fd); 
+            FD_SET(server.plugged_socks[i].socket, &read_fd); 
+            FD_SET(server.plugged_socks[i].socket, &write_fd); 
             
-            if (max_sock_value < plugged_socks[i].socket) 
-                max_sock_value = plugged_socks[i].socket; 
+            if (max_sock_value < server.plugged_socks[i].socket) 
+                max_sock_value = server.plugged_socks[i].socket; 
         } 
         
         if (select(max_sock_value + 1, &read_fd, &write_fd, 0, &client_latency) > 0) 
@@ -255,43 +308,45 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
             if (FD_ISSET(server.socket, &read_fd)) 
             { 
                 temp_client.socket = Accept(server.socket, (struct sockaddr*) &server.ip, &server.addrlen);
-                printf("Client connected : %d\n", temp_client.socket);
                 set_non_block_mode(temp_client.socket);
                 temp_client.connected = false;
-                plugged_socks.push_back(temp_client);
+                temp_client.ip = server.ip;
+                server.plugged_socks.push_back(temp_client);
             }
-            for (int i = 0; i < plugged_socks.size(); i++) 
+            for (int i = 0; i < server.plugged_socks.size(); i++) 
             { 
-                if (FD_ISSET(plugged_socks[i].socket, &read_fd)) 
+                if (FD_ISSET(server.plugged_socks[i].socket, &read_fd)) 
                 {   
-                    res = assemble_client_msg(server.ip, server.port, plugged_socks[i], msg_to_write);
+                    res = assemble_client_msg(server, server.plugged_socks[i], msg_to_write);
                     
                     if(res == ERROR)
                     {
-                        sock_err("assemble client msg", plugged_socks[i].socket);
+                        sock_err("assemble client msg", server.plugged_socks[i].socket);
                     }
                     else if(res != PUT)
                     {
-                        send_ok(plugged_socks[i].socket);
+                        send_ok(server.plugged_socks[i].socket);
                         clients_data_file << msg_to_write << '\n';
                         if(res == STOP)
                         {
+                            printf("'stop' received\n");
+                            
                             server_can_work = false;
-                            for(int i = 0; i < plugged_socks.size(); i++)
-                                close_socket(plugged_socks[i].socket);
+                            for(int i = 0; i < server.plugged_socks.size(); i++)
+                                close_socket(server.plugged_socks[i].socket);
                         }
                     }
                     else
                     {
-                        plugged_socks[i].connected = true;
-                        printf("Put received from : %d\n", plugged_socks[i].socket);
+                        server.plugged_socks[i].connected = true;
+                        printf("Peer connected : %s\n", ip_to_str(get_client_ip(server.plugged_socks[i].ip)).c_str());
                     }
                 }
                 /*
-                if (FD_ISSET(plugged_socks[i].socket, &write_fd)) 
+                if (FD_ISSET(server.plugged_socks[i].socket, &write_fd)) 
                 { 
 
-                    // Сокет plugged_socks[i] доступен для записи. Функция send и sendto будет успешно завершена 
+                    // Сокет server.plugged_socks[i] доступен для записи. Функция send и sendto будет успешно завершена 
                 } 
                 */
             } 
@@ -301,15 +356,12 @@ void serveClients(serverData &server, std::ofstream &clients_data_file)
             // Произошел таймаут или ошибка
         }
     }
+    close_sockets(server);
 }
 
 int Socket(int domain, int type, int protocol)
 {
 	int sock = socket(domain, type, protocol);
-	// af inet - ipv4
-	// tcp - sock_stream
-	// udp - sock_dgram
-	// 0 - prtocol of lower lvl protocol
 	if (sock == -1)
 		return sock_err("socket", sock);
 
@@ -384,5 +436,22 @@ void init_sockaddr(sockaddr_in &addr, int family, u_int32_t addres, int port)
 
 std::string get_msg_file_path()
 {
-    return std::string(std::filesystem::current_path()) + "/msg.txt";
+    char path[PATH_MAX];
+#ifdef _WIN32 
+    if(_getcwd(path, PATH_MAX) == NULL)
+    {
+        perror("_getcwd error");
+        exit(-1);
+    }
+#else
+    if(getcwd(path, PATH_MAX) == NULL)
+    {
+        perror("getcwd error");
+        exit(-1);
+    }
+#endif
+    std::string result;
+    result.assign(path);
+    result += "/msg.txt";
+    return result;
 }

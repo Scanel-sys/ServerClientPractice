@@ -217,6 +217,7 @@ void launch_server_with_epoll(struct ServerData &server, std::ofstream &input_ms
                         temp_client.recv_msg_numb.clear();
                         server.client_database.push_back(temp_client);
                         client_index = server.client_database.size() - 1;
+                        printf("New client detected : %s\n", ip_to_str(ip_to_str(server.ports[idx].ip)).c_str());
                     }
                     else if(if_old_msg(server.client_database[client_index], recv_msg_numb))
                     {
@@ -229,7 +230,7 @@ void launch_server_with_epoll(struct ServerData &server, std::ofstream &input_ms
                     if(msg_type_recv == STOP)
                     {
                         stop_received = true;
-                        printf(" STOP received\n");
+                        printf("STOP received : %s\n", ip_to_str(ip_to_str(server.ports[idx].ip)).c_str());
                     }
                     write_msg_to_file(input_msgs_file, new_msg);
                 }
@@ -289,7 +290,7 @@ bool if_old_msg(struct ClientData &client, uint32_t msg_numb)
 }
 
 
-uint32_t ip_to_normal_format(sockaddr_in sockaddr)
+uint32_t ip_to_str(sockaddr_in sockaddr)
 {
     return ntohl(sockaddr.sin_addr.s_addr);
 }
@@ -324,21 +325,71 @@ int char_to_int(char *raw_msg)
 
 std::string gen_msg_metadata(struct PortData &msg_dealer)
 {
-    return ip_to_str(ip_to_normal_format(msg_dealer.ip)) + ":" + port_to_str(msg_dealer.port) + " ";
+    return ip_to_str(ip_to_str(msg_dealer.ip)) + ":" + port_to_str(msg_dealer.port) + " ";
 }
 
-int assemble_client_msg(struct PortData &msg_dealer, char raw_msg[1024], char msg_raw_msg[1024])
+std::string get_parsed_datetime(char raw_msg[RAW_MSG_SIZE])
+{
+    struct parsed_message new_msg;
+
+    memcpy(&new_msg.date1.day, raw_msg + FIRST_DAY_SHIFT, sizeof(new_msg.date1.day));
+    memcpy(&new_msg.date1.month, raw_msg + FIRST_MONTH_SHIFT, sizeof(new_msg.date1.month));
+    memcpy(&new_msg.date1.year, raw_msg + FIRST_YEAR_SHIFT, sizeof(new_msg.date1.year));
+    new_msg.date1.year = ntohs(new_msg.date1.year);
+
+    memcpy(&new_msg.date2.day, raw_msg + SECOND_DAY_SHIFT, sizeof(new_msg.date1.day));
+    memcpy(&new_msg.date2.month, raw_msg + SECOND_MONTH_SHIFT, sizeof(new_msg.date1.month));
+    memcpy(&new_msg.date2.year, raw_msg + SECOND_YEAR_SHIFT, sizeof(new_msg.date1.year));
+    new_msg.date2.year = ntohs(new_msg.date2.year);
+
+    memcpy(&new_msg.time.hour, raw_msg + HOURS_SHIFT, sizeof(new_msg.time.hour));
+    memcpy(&new_msg.time.min, raw_msg + MINUTES_SHIFT, sizeof(new_msg.time.min));
+    memcpy(&new_msg.time.sec, raw_msg + SECONDS_SHIFT, sizeof(new_msg.time.sec));
+
+    new_msg.msg_text = date_time_to_str(new_msg);
+    return new_msg.msg_text;
+}
+
+std::string get_parsed_msg_text(char raw_msg[RAW_MSG_SIZE])
+{
+    char temp[RAW_MSG_SIZE];
+    temp[0] = '\0';
+    strcat(temp, raw_msg + SERVICE_INFO_SIZE);
+    std::string result(temp);
+    return result;
+}
+
+std::string date_time_to_str(struct parsed_message &new_msg)
+{
+    std::string result;
+    result += std::to_string(new_msg.date1.day) + ".";
+    result += std::to_string(new_msg.date1.month) + ".";
+    result += std::to_string(new_msg.date1.year) + " ";
+
+    result += std::to_string(new_msg.date2.day) + ".";
+    result += std::to_string(new_msg.date2.month) + ".";
+    result += std::to_string(new_msg.date2.year) + " ";
+
+    result += std::to_string(new_msg.time.hour) + ":";
+    result += std::to_string(new_msg.time.min) + ":";
+    result += std::to_string(new_msg.time.sec) + " ";
+    return result;
+}
+
+int assemble_client_msg(struct PortData &msg_dealer, char raw_msg[RAW_MSG_SIZE], char msg_raw_msg[RAW_MSG_SIZE])
 {
     enum MESSAGE_TYPE result = MSG;
-    
+    std::string msg_text = get_parsed_msg_text(raw_msg);
+
     for(int i = 0; i < 1024; i++)
         msg_raw_msg[i] = '\0';
 
-    if(strcmp(raw_msg + SERVICE_INFO_SIZE, "stop") == 0)
+    if(strcmp(msg_text.c_str(), "stop") == 0)
         result = STOP;
 
     strcat(msg_raw_msg, gen_msg_metadata(msg_dealer).c_str());
-    strcat(msg_raw_msg, raw_msg + SERVICE_INFO_SIZE);
+    strcat(msg_raw_msg, get_parsed_datetime(raw_msg).c_str());
+    strcat(msg_raw_msg, msg_text.c_str());
 
     return result;
 }
@@ -383,5 +434,14 @@ int send_msg(PortData &port_data, const void *raw_msg, size_t buff_len)
 
 std::string get_msg_file_path()
 {
-    return std::string(std::filesystem::current_path()) + "/msg.txt";
+    char path[PATH_MAX];
+    if(getcwd(path, PATH_MAX) == NULL)
+    {
+        perror("getcwd error");
+        exit(-1);
+    }
+    std::string result;
+    result.assign(path);
+    result += "/msg.txt";
+    return result;
 }

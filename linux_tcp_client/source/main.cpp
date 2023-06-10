@@ -5,14 +5,14 @@ int main(int argc, char *argv[])
 {
     int port;
     char ip_addr[16];
-    char fl_path[MAX_PATH];
+    char fl_path[PATH_MAX];
 
     parse_cmd(argc, argv, ip_addr, port, fl_path);
     
-    if(!(std::filesystem::exists(fl_path)))
+    if(!if_file_exists(fl_path))
     {
         perror("Data file seems like doesnt exist\n");
-        return 0;
+        exit(-1);
     }
 
     int client_tcp_socket; 
@@ -33,7 +33,8 @@ int main(int argc, char *argv[])
     data_file.close();    
     
     recvn_response_ok(client_tcp_socket, sent_msgs);
-
+    printf("%d messages sent\n", sent_msgs);
+    
     close_sock(client_tcp_socket);    
     deinit_netw_lib();
 

@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
     init_netw_lib();
     parse_cmd(argc, argv, ip_addr, port, fl_path);
 
-    if(!(std::filesystem::exists(fl_path)))
+    if(!(if_file_exists(fl_path)))
     {
         perror("Data file seems like doesnt exist\n");
         return 0;

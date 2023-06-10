@@ -4,7 +4,7 @@
 int main(int argc, char *argv[]) 
 { 
     init_netw_lib();
-    serverData server;
+    ServerData server;
     server.port = get_port(argc, argv);
     server.socket = Socket(AF_INET, SOCK_STREAM, 0);
     server.addrlen = sizeof(server.ip);
@@ -15,6 +15,7 @@ int main(int argc, char *argv[])
     if(Bind(server.socket, (struct sockaddr*) &server.ip, server.addrlen) == 0 &&
         Listen(server.socket, 1) == 0)
     {
+        printf("Listening TCP port : %d\n", server.port);
         std::ofstream clients_data_file;
         clients_data_file.open(get_msg_file_path());
         serveClients(server, clients_data_file);
