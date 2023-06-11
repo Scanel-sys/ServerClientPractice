@@ -95,11 +95,8 @@ void close_sockets(struct ServerData &server)
 {
     for(int i = 0; i < server.plugged_socks.size(); i++)
     {
-        if(server.plugged_socks[i].connected)
-        {
-            close_socket(server.plugged_socks[i].socket);
-            printf("Peer disconnected : %s\n", ip_to_str(get_client_ip(server.plugged_socks[i].ip)).c_str());
-        }
+        close_socket(server.plugged_socks[i].socket);
+        printf("Peer closed : %s\n", ip_to_str(get_client_ip(server.plugged_socks[i].ip)).c_str());
     }
 }
 
