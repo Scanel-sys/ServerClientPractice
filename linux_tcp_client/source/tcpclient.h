@@ -30,6 +30,18 @@
 
 #define WEBHOST "google.com"
 
+#define MSG_MIN_SIZE            (31)
+#define MSG_DATE_SIZE           (10)
+#define MSG_TIME_SIZE            (8)
+#define MSG_FIRST_DATE_POS       (0)
+#define MSG_SECOND_DATE_POS     (11)
+#define MSG_TIME_POS            (22)
+#define MSG_DATE_FIRST_DOT       (2)
+#define MSG_DATE_SECOND_DOT      (5)
+#define MSG_TIME_FIRST_COLON     (2)
+#define MSG_TIME_SECOND_COLON    (5)
+
+
 struct parsed_date;
 struct parsed_time;
 struct parsed_message;
@@ -50,6 +62,11 @@ int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[256]
 int parse_cmd_to_addr(char *cmd_addr, int &i, char *addres);
 int parse_cmd_to_port(char *cmd_addr, int i);
 int parse_cmd_to_path(char *cmd_flname, char *fl_path);
+
+bool if_right_format(std::string &temp_msg);
+bool if_spaces_on_right_place(std::string &msg);
+bool if_right_date(std::string &msg_date);
+bool if_right_time(std::string &msg_time);
 
 parsed_date parse_date(std::string date);
 parsed_time parse_time(std::string time);

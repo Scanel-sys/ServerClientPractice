@@ -192,6 +192,71 @@ int parse_cmd_to_path(char *cmd_flname, char fl_path[PATH_MAX])
 }
 
 
+bool if_right_format(std::string &temp_msg)
+{
+    if(temp_msg.size() < MSG_MIN_SIZE)
+        return false;
+
+    std::string first_date = temp_msg.substr(MSG_FIRST_DATE_POS, MSG_DATE_SIZE);
+    std::string second_date = temp_msg.substr(MSG_SECOND_DATE_POS, MSG_DATE_SIZE);
+    std::string msg_time = temp_msg.substr(MSG_TIME_POS, MSG_TIME_SIZE);
+
+    if(!if_spaces_on_right_place(temp_msg))
+        return false;
+
+    if(!if_right_date(first_date))
+        return false;
+
+    if(!if_right_date(second_date))
+        return false;
+
+    if(!if_right_time(msg_time))
+        return false;
+
+    return true;
+}
+
+bool if_spaces_on_right_place(std::string &msg)
+{
+    if(msg[MSG_FIRST_DATE_POS + MSG_DATE_SIZE] == ' ' && 
+        msg[MSG_SECOND_DATE_POS + MSG_DATE_SIZE] == ' ' &&
+        msg[MSG_TIME_POS + MSG_TIME_SIZE] == ' ')
+        return true;
+    return false;
+}
+
+bool if_right_date(std::string &msg_date)
+{
+    bool result = true;
+    if(msg_date[MSG_DATE_FIRST_DOT] == '.' &&
+        msg_date[MSG_DATE_SECOND_DOT] == '.')
+    {
+        for(int i = 0; i < MSG_DATE_SIZE && result; i++)
+            if(msg_date[i] != '.' && 
+                (msg_date[i] < '0' || msg_date[i] > '9') )
+                result = false;
+    }
+    else
+        result = false;
+    return result;
+}
+
+bool if_right_time(std::string &msg_time)
+{
+    bool result = true;
+    if(msg_time[MSG_TIME_FIRST_COLON] == ':' &&
+        msg_time[MSG_TIME_SECOND_COLON] == ':')
+    {
+        for(int i = 0; i < MSG_TIME_SIZE && result; i++)
+            if(msg_time[i] != ':' && 
+                (msg_time[i] < '0' || msg_time[i] > '9') )
+                result = false;
+    }
+    else
+        result = false;
+    return result;
+}
+
 parsed_message parse_msg(std::string source)
 {
     parsed_message temp_message;
@@ -300,7 +365,7 @@ int send_client_msgs(int sock, std::ifstream &source)
 
     while(std::getline(source, buffer))
     {
-        if(buffer.length() == 0)
+        if(buffer.length() == 0 || if_right_format(buffer) == false)
             continue;
         
         send_msg_index(sock, msg_index++);

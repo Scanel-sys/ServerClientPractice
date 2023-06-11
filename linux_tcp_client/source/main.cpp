@@ -35,7 +35,8 @@ int main(int argc, char *argv[])
     recvn_response_ok(client_tcp_socket, sent_msgs);
     printf("%d messages sent\n", sent_msgs);
     
-    close_sock(client_tcp_socket);    
+    close_sock(client_tcp_socket);
+    printf("Disconnected\n");
     deinit_netw_lib();
 
     return 0;
