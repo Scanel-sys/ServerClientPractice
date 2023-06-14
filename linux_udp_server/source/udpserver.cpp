@@ -297,13 +297,74 @@ uint32_t ip_to_str(sockaddr_in sockaddr)
 
 std::string ip_to_str(uint32_t ip)
 {
-    return std::to_string((ip >> 24) & 0xFF) + "." + std::to_string((ip >> 16) & 0xFF) + "." +\
-        std::to_string((ip >> 8) & 0xFF) + "." + std::to_string((ip) & 0xFF);
+    return int_to_str((ip >> 24) & 0xFF) + "." + int_to_str((ip >> 16) & 0xFF) + "." +\
+        int_to_str((ip >> 8) & 0xFF) + "." + int_to_str((ip) & 0xFF);
 }
 
 std::string port_to_str(int port)
 {
-    return std::to_string(port);
+    return int_to_str(port);
+}
+
+std::string int_to_str(int number)
+{
+    std::string result;
+    int temp_numb = number;
+    do{
+        result = (char)('0' + temp_numb % 10) + result;
+        temp_numb /= 10;
+    }while(temp_numb > 0);
+    
+    return result;
+}
+
+std::string date_time_to_str(struct parsed_message &new_msg)
+{
+    std::string result;
+    result += date_to_str(new_msg.date1);
+    result += date_to_str(new_msg.date2);
+    result += time_to_str(new_msg.time);
+    return result;
+}
+
+std::string date_to_str(struct parsed_date &date)
+{
+    std::string result;
+    if(date.day < 10)
+        result += "0";
+    result += int_to_str(date.day) + ".";
+    
+    if(date.month < 10)
+        result += "0";
+    result += int_to_str(date.month) + ".";
+
+    if(date.year < 10)
+        result += "000";
+    else if(date.year < 100)
+        result += "00";
+    else if(date.year < 1000)
+        result += "0";
+    result += int_to_str(date.year) + " ";
+
+    return result;
+}
+
+std::string time_to_str(struct parsed_time &temp_time)
+{
+    std::string result;
+    if(temp_time.hour < 10)
+        result += "0";
+    result += int_to_str(temp_time.hour) + ":";
+    
+    if(temp_time.min < 10)
+        result += "0";
+    result += int_to_str(temp_time.min) + ":";
+
+    if(temp_time.sec < 10)
+        result += "0";
+    result += int_to_str(temp_time.sec) + " ";
+
+    return result;
 }
 
 int char_to_int(char *raw_msg)
@@ -356,23 +417,6 @@ std::string get_parsed_msg_text(char raw_msg[RAW_MSG_SIZE])
     temp[0] = '\0';
     strcat(temp, raw_msg + SERVICE_INFO_SIZE);
     std::string result(temp);
-    return result;
-}
-
-std::string date_time_to_str(struct parsed_message &new_msg)
-{
-    std::string result;
-    result += std::to_string(new_msg.date1.day) + ".";
-    result += std::to_string(new_msg.date1.month) + ".";
-    result += std::to_string(new_msg.date1.year) + " ";
-
-    result += std::to_string(new_msg.date2.day) + ".";
-    result += std::to_string(new_msg.date2.month) + ".";
-    result += std::to_string(new_msg.date2.year) + " ";
-
-    result += std::to_string(new_msg.time.hour) + ":";
-    result += std::to_string(new_msg.time.min) + ":";
-    result += std::to_string(new_msg.time.sec) + " ";
     return result;
 }
 

@@ -107,12 +107,15 @@ bool if_old_msg(struct ClientData &client, uint32_t msg_numb);
 uint32_t ip_to_str(sockaddr_in sockaddr);
 std::string ip_to_str(uint32_t ip);
 std::string port_to_str(int port);
+std::string date_time_to_str(struct parsed_message &new_msg);
+std::string date_to_str(struct parsed_date &date);
+std::string time_to_str(struct parsed_time &temp_time);
+std::string int_to_str(int number);
 int char_to_int(char *buffer);
 
 std::string gen_msg_metadata(struct PortData &msg_dealer);
 std::string get_parsed_datetime(char raw_msg[RAW_MSG_SIZE]);
 std::string get_parsed_msg_text(char raw_msg[RAW_MSG_SIZE]);
-std::string date_time_to_str(struct parsed_message &new_msg);
 int assemble_client_msg(struct PortData &msg_dealer, char raw_msg[RAW_MSG_SIZE], char msg_buffer[RAW_MSG_SIZE]);
 void write_msg_to_file(std::ofstream &file, char source[RAW_MSG_SIZE]);
 uint32_t get_msg_number_netformat(char *raw_msg);
@@ -121,3 +124,4 @@ int send_msg_number(PortData &port_data, const void *number);
 int send_msg(PortData &port_data, const void *buffer, size_t buff_len);
 
 std::string get_msg_file_path();
+

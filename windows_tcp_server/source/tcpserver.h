@@ -87,6 +87,9 @@ std::string generate_msg_metadata(sockaddr_in transport_addres, int port);
 std::string get_parsed_datetime(char raw_msg[MSG_MAX_SIZE]);
 std::string get_parsed_msg_text(char raw_msg[MSG_MAX_SIZE]);
 std::string date_time_to_str(struct ParsedMessage &new_msg);
+std::string date_to_str(struct ParsedDate &date);
+std::string time_to_str(struct ParsedTime &temp_time);
+std::string int_to_str(int number);
 int assemble_client_msg(struct ServerData &server, struct Client &temp_client, char msg_to_write[MSG_MAX_SIZE]);
 
 int recv_string(int sock, char *buffer, int size);
