@@ -25,7 +25,8 @@ int main(int argc, char *argv[])
     client_tcp_socket = Socket(AF_INET, SOCK_STREAM, 0); 
     init_addr(ip_addr_internet_style, AF_INET, ip_addr, port);
 
-    try_to_connect(client_tcp_socket, ip_addr_internet_style);
+    if(try_to_connect(client_tcp_socket, ip_addr_internet_style) < 0)
+        exit(-1);
     init_talk_with_server(client_tcp_socket);
     
     data_file.open(fl_path);
