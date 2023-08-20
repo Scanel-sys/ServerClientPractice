@@ -5,19 +5,19 @@ int main(int argc, char *argv[])
 { 
     int port;
     char ip_addr[16];
-    char fl_path[MAX_PATH];
+    std::string file_path;
 
     init_netw_lib();
-    parse_cmd(argc, argv, ip_addr, port, fl_path);
+    parse_cmd(argc, argv, ip_addr, port, file_path);
 
-    if(!(if_file_exists(fl_path)))
+    if(!(if_file_exists(file_path)))
     {
         perror("Data file seems like doesnt exist\n");
         return 0;
     }
 
     int client_socket = Socket(AF_INET, SOCK_DGRAM, 0);; 
-    std::vector <datagram> datagrams = get_datagrams(fl_path);
+    std::vector <datagram> datagrams = get_datagrams(file_path);
     struct sockaddr_in ip_addr_netstyle; 
 
     init_udp_addr(ip_addr_netstyle, AF_INET, ip_addr, port);

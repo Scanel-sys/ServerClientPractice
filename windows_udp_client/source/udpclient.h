@@ -3,6 +3,8 @@
     #include <windows.h> 
     #include <winsock2.h> // Директива линковщику: использовать библиотеку сокетов 
     #include <WS2tcpip.h>
+    #include <direct.h>
+    #include <stdint.h>
     #pragma comment(lib, "ws2_32.lib")
 
 #else // LINUX 
@@ -15,6 +17,7 @@
     #include <unistd.h>
     #include <arpa/inet.h>
     #include <netinet/in.h>
+    #define MAX_PATH                (1024)
 #endif
 
 #include <sys/stat.h>
@@ -28,7 +31,6 @@
 
 
 #define DNS_PORT 53
-#define MAX_PATH 32768
 #define SERVER_DATAGRAM_SZ 80
 
 union to_htonl{
@@ -76,10 +78,10 @@ void init_udp_addr(sockaddr_in &addr, int family, const char *addres, int port);
 
 bool if_file_exists(const std::string &fl_name);
 int parse_err(const char* function);
-int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[256]);
+int parse_cmd(int argc, char *argv[], char *addres, int &port, std::string &file_path);
 int parse_cmd_to_addr(char *cmd_addr, int &i, char *addres);
 int parse_cmd_to_port(char *cmd_addr, int i);
-int parse_cmd_to_path(char *cmd_flname, char *fl_path);
+std::string parse_cmd_to_path(char *cmd_flname);
 
 parsed_date parse_date(std::string date);
 parsed_time parse_time(std::string time);
@@ -88,7 +90,7 @@ parsed_message parse_msg(std::string source);
 int assemble_msg(parsed_message &msg_parts, char *result);
 
 std::vector <datagram> 
-get_datagrams(char *fl_path);
+get_datagrams(std::string file_path);
 
 
 void send_request(int socket, struct sockaddr_in* addr);

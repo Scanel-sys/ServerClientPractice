@@ -77,7 +77,7 @@ int parse_err(const char* function)
     return -1; 
 }
 
-int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[MAX_PATH])
+int parse_cmd(int argc, char *argv[], char *addres, int &port, std::string &file_path)
 {
     if(argc != 3)
         return parse_err("Wrong number of parameters passed");
@@ -91,7 +91,7 @@ int parse_cmd(int argc, char *argv[], char *addres, int &port, char fl_path[MAX_
     if(port < 0)
         return parse_err("Wrong port is passed");
     
-    parse_cmd_to_path(argv[2], fl_path);
+    file_path = parse_cmd_to_path(argv[2]);
 
     return 0;
 }
@@ -126,18 +126,28 @@ int parse_cmd_to_port(char *cmd_addr, int i)
     return port;
 }
 
-int parse_cmd_to_path(char *cmd_flname, char fl_path[MAX_PATH])
+std::string parse_cmd_to_path(char *cmd_flname)
 {
-    if (getcwd(fl_path, MAX_PATH) == NULL)
+    char path[MAX_PATH];
+#ifdef _WIN32 
+    if(_getcwd(path, MAX_PATH) == NULL)
     {
-        perror("getcwd() error");
-        return 1;
+        perror("_getcwd error");
+        exit(-1);
     }
-    int i = strlen(fl_path);
-    fl_path[i++] = '/';
-    strncpy(fl_path + i, cmd_flname, strlen(cmd_flname) + 1);
+#else
+    if(getcwd(path, MAX_PATH) == NULL)
+    {
+        perror("getcwd error");
+        exit(-1);
+    }
+#endif
 
-    return 0;
+    std::string result;
+    result.assign(path);
+    result += "/";
+    result.assign(cmd_flname);
+    return result;
 }
 
 parsed_message parse_msg(std::string source)
@@ -213,7 +223,7 @@ int assemble_msg(parsed_message &msg_parts, char *result)
 }
 
 std::vector <datagram> 
-get_datagrams(char *fl_path)
+get_datagrams(std::string file_path)
 {
     std::ifstream data_file;
     
@@ -224,7 +234,7 @@ get_datagrams(char *fl_path)
     parsed_message msg_parts;
     std::string buffer;
 
-    data_file.open(fl_path);
+    data_file.open(file_path);
     while(std::getline(data_file, buffer))
     {
         if(buffer.length() == 0)
@@ -270,7 +280,7 @@ void send_msg(int socket, struct sockaddr_in* addr, const void *msg, int msg_len
 #else 
     int flags = MSG_NOSIGNAL; 
 #endif
-    if (sendto(socket, msg, msg_len, flags, (struct sockaddr*) addr, sizeof(struct sockaddr_in)) <= 0) 
+    if (sendto(socket, (const char *)msg, msg_len, flags, (struct sockaddr*) addr, sizeof(struct sockaddr_in)) <= 0) 
         sock_err("sendto", socket); 
 }
 
@@ -285,7 +295,7 @@ std::vector<datagram> get_missed_msgs(std::vector<datagram> &datagrams, char *re
         if(temp_msg_number >= 0)
         {
             bool found_msg = false;
-            for(int counter = 0; counter < result.size() && !found_msg; counter++)
+            for(unsigned int counter = 0; counter < result.size() && !found_msg; counter++)
             {
                 if(result[counter].msg_index == temp_msg_number)
                 {
