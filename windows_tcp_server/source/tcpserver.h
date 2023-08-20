@@ -4,6 +4,7 @@
     #include <winsock2.h> 
     #include <WS2tcpip.h>
     #include <direct.h>
+    #include <stdint.h>
     // Директива линковщику: использовать библиотеку сокетов 
     #pragma comment(lib, "ws2_32.lib") 
 #else // LINUX 
@@ -13,8 +14,9 @@
     #include <unistd.h>
     #include <errno.h> 
     #include <fcntl.h>      //lib for non blocking behaviour
+    #define MAX_PATH              (1024)
 #endif
-    
+
 #include <stdexcept>
 #include <stdio.h> 
 #include <string.h>
@@ -37,8 +39,11 @@
 #define  MINUTES_SHIFT              (13)
 #define  SECONDS_SHIFT              (14)
 
-enum MESSAGE_TYPE{ERROR = -1, PUT = 0, STOP, MSG};
-
+//enum MESSAGE_TYPE{ERROR_ENUM = -1, PUT = 0, STOP, MSG};
+#define ERROR_ENUM						(-1)
+#define	PUT							 (0)
+#define STOP						 (1)
+#define MSG							 (2)
 
 struct Client{
     int socket;
@@ -51,7 +56,7 @@ struct ServerData{
     int port;
     sockaddr_in ip;
     socklen_t addrlen;
-    std::vector <Client> plugged_socks{0};
+    std::vector <struct Client> plugged_socks;
 };
 
 struct ParsedTime
@@ -93,7 +98,6 @@ std::string int_to_str(int number);
 int assemble_client_msg(struct ServerData &server, struct Client &temp_client, char msg_to_write[MSG_MAX_SIZE]);
 
 int recv_string(int sock, char *buffer, int size);
-int send_notice(int sock, int len);
 int recv_put(int sock, char *buffer);
 
 int sock_err(const char* function, int sock);
@@ -115,6 +119,6 @@ int send_ok(int sock);
 
 void serveClients(ServerData &server, std::ofstream &clients_data_file);
 
-void init_sockaddr(sockaddr_in &addr, int family, u_int32_t addres, int port);
+void init_sockaddr(sockaddr_in &addr, int family, uint32_t addres, int port);
 
 std::string get_msg_file_path();

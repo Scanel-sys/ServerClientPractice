@@ -2,7 +2,7 @@
 
 
 int main(int argc, char *argv[]) 
-{ 
+{
     init_netw_lib();
     ServerData server;
     server.port = get_port(argc, argv);

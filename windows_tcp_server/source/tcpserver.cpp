@@ -93,7 +93,7 @@ void close_socket(int sock)
 
 void close_sockets(struct ServerData &server)
 {
-    for(int i = 0; i < server.plugged_socks.size(); i++)
+    for(unsigned int i = 0; i < server.plugged_socks.size(); i++)
     {
         close_socket(server.plugged_socks[i].socket);
         printf("Peer closed : %s\n", ip_to_str(get_client_ip(server.plugged_socks[i].ip)).c_str());
@@ -106,15 +106,15 @@ unsigned int get_client_ip(sockaddr_in sockaddr)
     return ntohl(sockaddr.sin_addr.s_addr);
 }
 
-std::string ip_to_str(unsigned int ip)
+std::string ip_to_str(uint32_t ip)
 {
-    return std::to_string((ip >> 24) & 0xFF) + "." + std::to_string((ip >> 16) & 0xFF) + "." +\
-            std::to_string((ip >> 8) & 0xFF) + "." + std::to_string((ip) & 0xFF);
+    return int_to_str((ip >> 24) & 0xFF) + "." + int_to_str((ip >> 16) & 0xFF) + "." +\
+        int_to_str((ip >> 8) & 0xFF) + "." + int_to_str((ip) & 0xFF);
 }
 
 std::string port_to_str(int port)
 {
-    return std::to_string(port);
+    return int_to_str(port);
 }
 
 std::string generate_msg_metadata(sockaddr_in transport_addres, int port)
@@ -148,7 +148,7 @@ std::string get_parsed_msg_text(char raw_msg[MSG_MAX_SIZE])
 {
     char temp[MSG_MAX_SIZE];
     temp[0] = '\0';
-    strcat(temp, raw_msg + SERVICE_INFO_SIZE);
+    strcat_s(temp, MSG_MAX_SIZE, raw_msg + SERVICE_INFO_SIZE);
     std::string result(temp);
     return result;
 }
@@ -217,7 +217,7 @@ std::string time_to_str(struct ParsedTime &temp_time)
 
 int assemble_client_msg(struct ServerData &server, struct Client &temp_client, char msg_to_write[MSG_MAX_SIZE])
 {
-    enum MESSAGE_TYPE result = MSG;
+    int result = MSG;
 
     for(int i = 0; i < MSG_MAX_SIZE; i++)
         msg_to_write[i] = '\0';
@@ -230,9 +230,9 @@ int assemble_client_msg(struct ServerData &server, struct Client &temp_client, c
         if(strcmp(msg_text.c_str(), "stop") == 0)
             result = STOP;
 
-        strcat(msg_to_write, generate_msg_metadata(server.ip, server.port).c_str());
-        strcat(msg_to_write, get_parsed_datetime(raw_msg).c_str());
-        strcat(msg_to_write, msg_text.c_str());
+        strcat_s(msg_to_write, MSG_MAX_SIZE, generate_msg_metadata(server.ip, server.port).c_str());
+        strcat_s(msg_to_write, MSG_MAX_SIZE, get_parsed_datetime(raw_msg).c_str());
+        strcat_s(msg_to_write, MSG_MAX_SIZE, msg_text.c_str());
     }
     else
     {
@@ -242,7 +242,7 @@ int assemble_client_msg(struct ServerData &server, struct Client &temp_client, c
             result = PUT;
         else
         {
-            result = ERROR;
+            result = ERROR_ENUM;
             close_socket(temp_client.socket);
         }
     }
@@ -279,11 +279,11 @@ int recv_string(int sock, char *buffer, int size)
 
 int recv_put(int sock, char *buffer)
 {
-    int res = recv(sock, buffer, 3, 0);
+    int res = (int)recv(sock, buffer, 3, 0);
     if(res < 0)
     {
         sock_err("recv put", sock);
-        return ERROR;
+        return ERROR_ENUM;
     }
     
     if(buffer[0] == 'p' &&
@@ -292,7 +292,7 @@ int recv_put(int sock, char *buffer)
         return PUT;
     
     sock_err("recv put", sock);
-    return ERROR;
+    return ERROR_ENUM;
 }
 
 int send_notice(int sock, int len) 
@@ -307,7 +307,7 @@ int send_notice(int sock, int len)
     int flags = MSG_NOSIGNAL; 
 #endif
 
-    sprintf(buffer, "Length of your string: %d chars.", len);
+    sprintf_s(buffer, 1024, "Length of your string: %d chars.", len);
     
     while (sent < (int) strlen(buffer)) 
     { 
@@ -336,7 +336,7 @@ void serveClients(ServerData &server, std::ofstream &clients_data_file)
         FD_ZERO(&write_fd);
         FD_SET(server.socket, &read_fd);
         
-        for (int i = 0; i < server.plugged_socks.size(); i++) 
+        for (unsigned int i = 0; i < server.plugged_socks.size(); i++) 
         { 
             FD_SET(server.plugged_socks[i].socket, &read_fd); 
             FD_SET(server.plugged_socks[i].socket, &write_fd); 
@@ -355,13 +355,13 @@ void serveClients(ServerData &server, std::ofstream &clients_data_file)
                 temp_client.ip = server.ip;
                 server.plugged_socks.push_back(temp_client);
             }
-            for (int i = 0; i < server.plugged_socks.size(); i++) 
+            for (unsigned int i = 0; i < server.plugged_socks.size(); i++) 
             { 
                 if (FD_ISSET(server.plugged_socks[i].socket, &read_fd)) 
                 {   
                     res = assemble_client_msg(server, server.plugged_socks[i], msg_to_write);
                     
-                    if(res == ERROR)
+                    if(res == ERROR_ENUM)
                     {
                         sock_err("assemble client msg", server.plugged_socks[i].socket);
                     }
@@ -374,7 +374,7 @@ void serveClients(ServerData &server, std::ofstream &clients_data_file)
                             printf("'stop' received\n");
                             
                             server_can_work = false;
-                            for(int i = 0; i < server.plugged_socks.size(); i++)
+                            for(unsigned int i = 0; i < server.plugged_socks.size(); i++)
                                 close_socket(server.plugged_socks[i].socket);
                         }
                     }
@@ -455,7 +455,7 @@ int send_msg(int sock, const void * buf, int len)
 #endif
 
     // Отправка блока данных 
-    int res = send(sock, buf, len, flags); 
+    int res = send(sock, (const char *)buf, len, flags); 
     // if (res < 0) 
         // return sock_err("send", sock);
 
@@ -468,7 +468,7 @@ int send_ok(int sock)
     return send_msg(sock, "ok", 2);
 }
 
-void init_sockaddr(sockaddr_in &addr, int family, u_int32_t addres, int port)
+void init_sockaddr(sockaddr_in &addr, int family, uint32_t addres, int port)
 {
     memset(&addr, 0, sizeof(addr)); 
     addr.sin_family = AF_INET; 
@@ -478,15 +478,15 @@ void init_sockaddr(sockaddr_in &addr, int family, u_int32_t addres, int port)
 
 std::string get_msg_file_path()
 {
-    char path[PATH_MAX];
+    char path[MAX_PATH];
 #ifdef _WIN32 
-    if(_getcwd(path, PATH_MAX) == NULL)
+    if(_getcwd(path, MAX_PATH) == NULL)
     {
         perror("_getcwd error");
         exit(-1);
     }
 #else
-    if(getcwd(path, PATH_MAX) == NULL)
+    if(getcwd(path, MAX_PATH) == NULL)
     {
         perror("getcwd error");
         exit(-1);
