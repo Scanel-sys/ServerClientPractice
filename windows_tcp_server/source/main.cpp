@@ -1,7 +1,7 @@
-#include "tcpserver.h"
+#include <tcpserver.h>
 
 
-int main(int argc, char *argv[]) 
+int main(int argc, char* argv[])
 {
     init_netw_lib();
     ServerData server;
@@ -11,8 +11,8 @@ int main(int argc, char *argv[])
     init_sockaddr(server.ip, AF_INET, INADDR_ANY, server.port);
 
     set_non_block_mode(server.socket);
-    
-    if(Bind(server.socket, (struct sockaddr*) &server.ip, server.addrlen) == 0 &&
+
+    if (Bind(server.socket, (struct sockaddr*)&server.ip, server.addrlen) == 0 &&
         Listen(server.socket, 1) == 0)
     {
         printf("Listening TCP port : %d\n", server.port);
@@ -21,8 +21,8 @@ int main(int argc, char *argv[])
         serveClients(server, clients_data_file);
         clients_data_file.close();
     }
-    
-    close_socket(server.socket);     
+
+    close_socket(server.socket);
     deinit_netw_lib();
-    return 0; 
+    return 0;
 }
